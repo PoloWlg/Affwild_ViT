@@ -6,6 +6,8 @@ from collections import OrderedDict
 from torch.utils.data import Dataset
 from torchvision.transforms import transforms
 
+import torchvision.transforms as T
+
 from base.transforms3D import *
 from base.utils import load_npy
 import pandas as pd
@@ -171,7 +173,7 @@ class GenericDataset(Dataset):
         self.data_list = data_list
         self.mode = mode
         self.continuous_label = self.init_continuous_label()
-        self.features_video = self.init_features_videos()
+        # self.features_video = self.init_features_videos()
         self.continuous_label_dim = continuous_label_dim
         self.mean_std = mean_std
         self.mean_std_info = 0
@@ -217,41 +219,71 @@ class GenericDataset(Dataset):
         raise NotImplementedError
 
     def get_3D_transforms(self):
-        normalize = GroupNormalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+        normalize = GroupNormalize([0.48145466, 0.4578275, 0.40821073], [0.26862954, 0.26130258, 0.27757711])
 
         if "video" in self.modality:
             if self.mode == 'train':
                 self.transform_dict['video'] = transforms.Compose([
-                    GroupNumpyToPILImage(0),
-                    GroupRandomCrop(48, 40),
-                    GroupRandomHorizontalFlip(),
-                    Stack(),
-                    ToTorchFormatTensor(),
-                    normalize
+                    # GroupNumpyToPILImage(0),
+                    # T.RandomCrop(48, 40),
+                    T.ToPILImage(),
+                    T.RandomCrop((40, 40)),
+                    # T.Resize((224, 224)),
+                    T.RandomHorizontalFlip(),
+                    # T.RandomRotation(10),
+                    # T.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+                    # Stack(),
+                    T.ToTensor(),
+                    # T.RandomErasing(p=0.2, scale=(0.02, 0.1)),
+                    T.Normalize(
+                        mean=[0.485, 0.456, 0.406],  # ImageNet means
+                        std=[0.229, 0.224, 0.225]    # ImageNet stds
+                    )
                 ])
             else:
                 self.transform_dict['video'] = transforms.Compose([
-                    GroupNumpyToPILImage(0),
-                    GroupCenterCrop(40),
-                    Stack(),
-                    ToTorchFormatTensor(),
-                    normalize
+                    T.ToPILImage(),
+                    T.CenterCrop(40),
+                    T.ToTensor(),
+                    T.Normalize(
+                        mean=[0.485, 0.456, 0.406],  # ImageNet means
+                        std=[0.229, 0.224, 0.225]    # ImageNet stds
+                    )
                 ])
+                
+            #     if "video" in self.modality:
+            # if self.mode == 'train':
+            #     self.transform_dict['video'] = transforms.Compose([
+            #         GroupNumpyToPILImage(0),
+            #         GroupRandomCrop(48, 40),
+            #         GroupRandomHorizontalFlip(),
+            #         Stack(),
+            #         ToTorchFormatTensor(),
+            #         normalize
+            #     ])
+            # else:
+            #     self.transform_dict['video'] = transforms.Compose([
+            #         GroupNumpyToPILImage(0),
+            #         GroupCenterCrop(40),
+            #         Stack(),
+            #         ToTorchFormatTensor(),
+            #         normalize
+            #     ])
 
         for feature in self.modality:
             if "continuous_label" not in feature and "video" not in feature:
                 self.transform_dict[feature] = self.get_feature_transform(feature)
 
     def get_feature_transform(self, feature):
-        if  "logmel" or "context" in feature:
+        if  "video" not in feature:
             transform = transforms.Compose([
                 transforms.ToTensor()
             ])
         else:
             transform = transforms.Compose([
                 transforms.ToTensor(),
-                transforms.Normalize(mean=[self.mean_std[feature]['mean']],
-                                     std=[self.mean_std[feature]['std']])
+                # transforms.Normalize(mean=[self.mean_std[feature]['mean']],
+                #                      std=[self.mean_std[feature]['std']])
             ])
         return transform
     
@@ -284,24 +316,19 @@ class GenericDataset(Dataset):
     def __getitem__(self, index):
         path, trial, length, index, indice = self.data_list[index]
         examples = {}
-
-        # for feature in self.modality:
-        #     examples[feature] = self.get_example(path, length, index, feature, indice)
-            
-
+        extracted_features = {}
+        
         examples['EXPR_continuous_label'] = self.get_features('EXPR_continuous_label', trial, length, index)
-        features_video = self.get_features('features_video', trial, length, index)
-        examples['video'] = torch.zeros([300, 3, 40, 40])
-        examples['context'] = self.get_example(path, length, index, 'context', indice)
+        # examples['context'] = self.get_example(path, length, index, 'context', indice)
         examples['video'] = self.get_example(path, length, index, 'video', indice)
         
-        # features_video = self.get_features_video(trial, length, index)
+        extracted_features['clip_feats'] =  self.get_example(path, length, index, 'clip_feats', indice)
         
-        # features_video = self.features_video[trial][index]
-        # features_video = torch.zeros([300, 512, 5, 5])
+        
+        
         if len(index) < self.window_length:
             index = np.arange(self.window_length)
-        return examples, trial, length, index, features_video
+        return examples, extracted_features, trial, length, index
 
     def __len__(self):
         return len(self.data_list)
@@ -311,13 +338,13 @@ class GenericDataset(Dataset):
     def get_features(self, modal, trial, length, indices):
         
         if modal == 'features_video':
-            data = self.features_video[trial][indices]
+            data = self.continuous_label[trial][indices]
         elif modal == 'EXPR_continuous_label':
             data = self.continuous_label[trial][indices]
         
         if length < self.window_length:
             dtype = np.float32
-            shape = (300, ) + data.shape[1:]
+            shape = (self.window_length, ) + data.shape[1:]
             example = np.zeros(shape=shape, dtype=dtype)
             example[indices] = data
             data = example
@@ -326,8 +353,8 @@ class GenericDataset(Dataset):
     def get_example(self, path, length, index, feature, indice):
 
 
-        x = random.randint(0, self.multiplier[feature] - 1)
-        random_index = index * self.multiplier[feature] + x
+
+        random_index = index 
 
         # Probably, a trial may be shorter than the window, so the zero padding is employed.
         # if (feature == "context"):
@@ -342,22 +369,17 @@ class GenericDataset(Dataset):
                 shape = (self.window_length,) + (4096,)
                 example = np.zeros(shape=shape, dtype=dtype)
             example[index] = self.load_data(path, random_index, feature, indice)
-            example[index[-1]: self.window_length-1] = example[index[-1]]
+            example[index[-1]: self.window_length] = example[index[-1]]
         else:
             example = self.load_data(path, random_index, feature, indice)
 
-        # Sometimes we may want to shift the label, so that
-        # the ith label point  corresponds to the (i - time_delay)-th data point.
-        if "continuous_label" in feature and self.time_delay != 0:
-            example = np.concatenate(
-                (example[self.time_delay:, :],
-                 np.repeat(example[-1, :][np.newaxis], repeats=self.time_delay, axis=0)), axis=0)
-
-        if ("continuous_label" not in feature) and ("context" not in feature):
-            example = self.transform_dict[feature](np.asarray(example, dtype=np.float32))
+        if 'video' in feature:
+            example = self.transform_dict[feature](np.asarray(example, dtype=np.uint8).squeeze(0))
         
         if "context" in feature:
             example = example
+        
+        example =  np.expand_dims(example, axis=0)
         return example
 
     def load_data(self, path, indices, feature, indice):

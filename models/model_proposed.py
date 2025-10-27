@@ -16,6 +16,9 @@ import matplotlib.pyplot as plt
 
 import lorem
 import clip
+from torchvision import models
+from torch.nn.utils import weight_norm
+from transformers import AutoImageProcessor, AutoModelForImageClassification
 
 EMOTIONS = ['Neutral', 'Anger', 'Disgust', 'Fear', 'Happiness', 'Sadness', 'Surprise', 'Other']
 
@@ -444,216 +447,100 @@ class Video_only(nn.Module):
             return x_video, video_features
         
 
+class ResNet18Backbone(nn.Module):
+    def __init__(self, pretrained=True):
+        super().__init__()
+        resnet = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1 if pretrained else None)
+        self.features = nn.Sequential(*list(resnet.children())[:-2])
+        self.pool = nn.AdaptiveAvgPool2d((1, 1))
+
+    def forward(self, x):
+        x = self.features(x)
+        x = self.pool(x)
+        x = torch.flatten(x, 1)
+        return x  
+    
+
+    
 class Proposed(nn.Module):
     def __init__(self, root_dir, device, backbone_settings, frozen_resnet50, args):
         super().__init__()
         
-        self.args = args
-        self.root_dir = root_dir
         self.device = device
+        self.spatial, _ = clip.load('ViT-L/14', device=device) 
+        self.spatial = self.spatial.float()
         
-        self.temporal = nn.ModuleDict()
-        self.bn = nn.ModuleDict()
-        self.sentence_embeddings = self.create_sentence_embeddings()
         
-        # self.spatial = self.load_visual_backbone(backbone_settings=backbone_settings, frozen_resnet50=frozen_resnet50)
-        self.spatial, _ = clip.load('ViT-L/14', device=device)
-        self.output_layer = Sequential(
-            nn.AdaptiveAvgPool2d((1, 1)),  # Mean pool to [B, 512, 1, 1]
-            nn.Flatten(), 
-        )
+        # for param in self.spatial.parameters():
+        #     param.requires_grad = bool(args.unfreeze_all_clip) 
         
-        embedding_dim = 512
-        self.output_layer2 = Sequential(
-            Flatten(),
-            nn.ReLU(),
-            Dropout(0.4),
-            Linear(embedding_dim * 5 * 5, 512),
-            nn.LayerNorm(embedding_dim)
-        )
+                
+        # for param in self.spatial.visual.transformer.resblocks[-1].parameters():
+        #     param.requires_grad = True
+        # for param in self.spatial.visual.ln_post.parameters():
+        #     param.requires_grad = True
+        # self.spatial.visual.proj.requires_grad = True 
         
-        self.x_cat_fc = Sequential(
-            nn.Linear(1024, 512),
-            nn.LayerNorm(512),
-            nn.ReLU(),
-            Dropout(0),
-        )
+        # self.processor = AutoImageProcessor.from_pretrained("mo-thecreator/vit-Facial-Expression-Recognition")
+        # self.spatial = AutoModelForImageClassification.from_pretrained("mo-thecreator/vit-Facial-Expression-Recognition", output_hidden_states=True)
         
-        self.fc_context = Sequential(
-            nn.Linear(1536, 512),
-            nn.LayerNorm(512),
-            nn.ReLU(),
-            Dropout(0),
-        )
-        self.classifier = Sequential(
-            nn.Linear(128, 128),
-            nn.LayerNorm(128),
-            nn.ReLU(),
-            Dropout(0.4),   
-            nn.Linear(128, 8)
-        )
+        # self.spatial.to(self.device)
+        # self.spatial = self.spatial.float()
         
-        self.fc_qwen = nn.Linear(4096, 768)
-        self.fc_context1 = nn.Linear(8192, 512)
-        self.temporal = TemporalConvNet(num_inputs=512, max_length=300,
-                                                   num_channels=[512,256, 128], attention=0,
-                                                   kernel_size=5, dropout=0.3).to(self.device)
-        
-        self.fc_context = Sequential(
-            nn.Linear(4096, 4096),
-            nn.LayerNorm(4096),
-            nn.ReLU(),
-            Dropout(0),   
-        )
-        
-        self.fc_sentence_embeddings = Sequential(
-            nn.Linear(4096, 4096),
-            nn.LayerNorm(4096),
-            nn.ReLU(),
-            Dropout(0),   
-        )
+        #self.spatial= ResNet18Backbone().to(device) 
+        tcn_channels = [768, 256, 128]
+        self.temporal = TemporalConvNet(num_inputs=tcn_channels[0],
+                                        num_channels=tcn_channels,
+                                        kernel_size=5, 
+                                        attention=False,
+                                        ).to(self.device)
         
         self.mlp = Sequential(
-            nn.Linear(768, 8),
+            nn.Linear(128, 64),
+            nn.BatchNorm1d(64),
+            nn.Linear(64, 8)
         )
         
-        # context modality on
-    def load_visual_backbone(self, backbone_settings, frozen_resnet50):
-        resnet = VisualBackbone2(mode='ir', use_pretrained=False)
-        state_dict = torch.load(os.path.join(self.root_dir, backbone_settings['visual_state_dict'] + ".pth"),map_location='cpu')
-        resnet.load_state_dict(state_dict)
-        for param in resnet.parameters():
-            param.requires_grad = not frozen_resnet50
-            
-        return resnet
+        self.mlp2 = Sequential(
+            nn.Linear(768, 8)
+        )
+       
 
-    def forward(self, X, features):
+    def forward(self, X, use_extracted_feats):
+
+            if use_extracted_feats:
+                # clip_feats = X['clip_feats']
+                # clip_feats = clip_feats.float().permute(0,2,1)
+                
+                # x_video = self.temporal(clip_feats)
+                
+                # x_video = x_video.permute(0,2,1).reshape(-1, 128)
+                # x_video = self.mlp(x_video)
+                # return x_video, None
+                
+                clip_feats = X['clip_feats']
+                clip_feats = clip_feats.float().to(self.device)
+                clip_feats = clip_feats.reshape(-1, 768)
+                x_video = self.mlp2(clip_feats)
+                return x_video, clip_feats
+                
             
-            batch_size, length, channel, width, height = X['video'].shape
-            video_features = None 
-            features = None
-            if features is not None:
-                x_video = features.to(self.device).to(torch.float32)
-                x_video = x_video.view(-1, 512, 5, 5) 
-                x_video = self.output_layer2(x_video)
-                x_video = x_video.view(batch_size,length, 512)#.permute(0,2,1)
-                
-                # Context part 
-                x_context = X['context'].view(batch_size*length, -1)
-                x_context = self.fc_context(x_context)
-                
-                sentences_embeddings = self.sentence_embeddings
-                sentences_embeddings = self.fc_sentence_embeddings(sentences_embeddings)
-                
-                similarities = torch.matmul(x_context, sentences_embeddings.T)
-                similarities2 = torch.argmax(similarities, dim=1)
-                selected_embeddings = sentences_embeddings[similarities2]
-                sim_cosine = cos_sim(x_context, sentences_embeddings)
-                x_context =  torch.cat([selected_embeddings, x_context], dim=1)
-                
-                x_context = self.fc_context1(x_context).view(batch_size, length, 512)
-                
-                x_cat = torch.cat([x_video, x_context], dim=2)
-                x_cat = self.x_cat_fc(x_cat).permute(0,2,1)
-                x_cat = self.temporal(x_cat)
-                x_cat = x_cat.permute(0,2,1).reshape(batch_size*length, 128)
-                
-                
-                
-                x_cat = self.classifier(x_cat)
-                
             else: 
                 x_video = X['video']
+                batch_size, length, channel, width, height = x_video.shape
+            
                 x_video = x_video.view(-1, channel, width, height)
                 x_video = F.interpolate(x_video, size=(224, 224), mode='bilinear', align_corners=False)# [batch x length, channel, width, height]
+                
                 with torch.no_grad():
-                    x_video = self.spatial.encode_image(x_video)
-                x_video = x_video.float()
-                # x_video = self.output_layer(x_video)
-                x_video = self.mlp(x_video)
+                    # inputs = self.processor(images=x_video, return_tensors="pt")
+                    clip_feats = self.spatial.encode_image(x_video)
+                    
+                # clip_feats = clip_feats.hidden_states[-1][:, 0, :]
+                x_video = self.mlp2(clip_feats)
+                return x_video, clip_feats
             
-            return x_video
-        
-    
-    def create_sentence_embeddings(self, semantic_context_path='/home/ens/AS84330/Context/ABAW3_EXPR4/prototypes/resumed_qwen_prompt1'):
-        # model = SentenceTransformer("all-MiniLM-L6-v2")
-        if self.args.context_feature_model == 'bert':
-            model = SentenceTransformer("bert-base-nli-mean-tokens", device=self.device)
-        elif self.args.context_feature_model == 'qwen3':
-            model = SentenceTransformer("Qwen/Qwen3-Embedding-8B", device=self.device)
-        elif self.args.context_feature_model == 'llama2':
-            model_id = "meta-llama/Llama-2-7b-hf"
-            # Login first with: huggingface-cli login
-            token = "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"
-            tokenizer = AutoTokenizer.from_pretrained(model_id, token=token)
-            tokenizer.pad_token = tokenizer.eos_token
-
-            model = AutoModel.from_pretrained(model_id, output_hidden_states=True, token=token)
-            model.to(self.device) 
-        else:
-            raise ValueError("Invalid model")
             
-        model.eval()
-        
-        
-        sentences = {
-            'Neutral': '',
-            'Anger': '',
-            'Disgust': '',
-            'Fear': '',
-            'Happiness': '',
-            'Sadness': '',
-            'Surprise': '',
-            'Other': '',
-        }
-        for emotion_description in os.listdir(semantic_context_path):
-            emotion_description_path = os.path.join(semantic_context_path, emotion_description)
-            with open(emotion_description_path, "r") as file:
-                content = file.read()
-                content = lorem.paragraph() + lorem.paragraph() + lorem.paragraph() + lorem.paragraph()
-                sentences[emotion_description.replace('.txt', '')] = content
-        sentences = list(sentences.values())
-        
-        if self.args.context_feature_model == 'llama2':
-            inputs = tokenizer(sentences, return_tensors="pt", padding=True, truncation=True)
-            inputs = {k: v.to(self.device) for k, v in inputs.items()}
-
-            # Get hidden states from the model
-            with torch.no_grad():
-                outputs = model(**inputs)
-
-            # Use the last hidden state
-            last_hidden_state = outputs.last_hidden_state  # shape: [batch_size, seq_len, hidden_dim]
-
-            # Option 1: Use [first token] embedding (like CLS)
-            # cls_embedding = last_hidden_state[:, 0, :]  # shape: [1, hidden_dim]
-
-            # Option 2: Mean pooling over all tokens
-            mean_embedding = last_hidden_state.mean(dim=1)  # shape: [1, hidden_dim]
-            sentence_embeddings = mean_embedding.cpu().numpy() 
+            
             
         
-        else: 
-            sentence_embeddings = model.encode(sentences)
-        
-        # embedding_matrix = nn.Embedding(8, 768)
-        # embedding_matrix.weight.data.copy_(torch.from_numpy(sentence_embeddings).to(self.device)).to(self.device)
-        display_umap(sentence_embeddings)
-        return torch.tensor(sentence_embeddings).to(self.device)
-
-def display_umap(vectors_np):
-    emotions = ['Neutral', 'Anger', 'Disgust', 'Fear', 'Happiness', 'Sadness', 'Surprise', 'Other']
-    
-    reducer = umap.UMAP(n_components=2, random_state=42)
-    vectors_2d = reducer.fit_transform(vectors_np)
-
-    # Plot
-    plt.figure(figsize=(6, 6))
-    plt.scatter(vectors_2d[:, 0], vectors_2d[:, 1], c='blue', s=50)
-
-    for i, (x, y) in enumerate(vectors_2d):
-        plt.text(x + 0.1, y + 0.1, f'#{emotions[i]}', fontsize=9)
-
-    plt.title("UMAP projection of each 8 Categories (4096 → 2D)")
-    plt.grid(True)
-    plt.savefig('umap_bert.png')

@@ -55,6 +55,7 @@ class Experiment(GenericExperiment):
         
         self.save_feature_maps = args.save_feature_maps
         self.save_tsne_pcc_inter_connexions = args.save_tsne_pcc_inter_connexions
+        self.unfreeze_all_clip = args.unfreeze_all_clip
         
 
     
@@ -96,8 +97,8 @@ class Experiment(GenericExperiment):
             torch.cuda.ipc_collect()
             
             wandb.init(
-                project=f"Testing seed", 
-                name=f"train-{self.model_name}-seed_{self.args.seed}",
+                project=f"Finetune", 
+                name=f"lr_{self.args.learning_rate}-bs_{self.args.batch_size}-self.args.unfreeze_all_clip_{self.args.unfreeze_all_clip}",
                 config={
                     "gpu": self.args.gpu,
                     "epochs": self.args.num_epochs,

@@ -538,12 +538,17 @@ class FeaturesHandler(object):
                 self.trialwise_records[trial] = self.create_list_for_a_trial(lengths[i])
 
             index = indices[i]
-            for k, data in enumerate(output[i, :, :]):
+            for k, data in enumerate(output[i, :]):
                 if k == lengths[i]:
                     break
-                self.trialwise_records[trial][index[k]] = output[i, k, :].cpu().detach().numpy()
+                self.trialwise_records[trial][index[k]] = output[i, k]
         
     def create_list_for_a_trial(self, length):
         # trial_record = [[] for i in range(length)]
-        trial_record = np.zeros((length, 512, 5, 5))
+        trial_record = np.zeros((length, 768))
         return trial_record
+    
+    def save_features(self):
+        return 
+        for key in self.trialwise_records:
+            np.save(os.path.join('/projets/AS84330/Datasets2/Abaw6_EXPR_contextual/compacted_48/', key, "clip_feats.npy"), self.trialwise_records[key])

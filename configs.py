@@ -41,6 +41,7 @@ config = {
     "feature_dimension": {
         "context": (768,),
         "video": (48, 48, 3),
+        "clip_feats": (768,),
         "cnn": (512,),
         "AU_continuous_label": (12,),
         "EXPR_continuous_label": (1,),

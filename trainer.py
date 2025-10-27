@@ -96,10 +96,10 @@ class Trainer(GenericVideoTrainer):
 
             # Get the losses and the record dictionaries for training and validation.
             train_kwargs = {"dataloader_dict": dataloader_dict, "epoch": epoch}
-            train_loss, train_record_dict = self.train(**train_kwargs)
+            train_loss, train_record_dict, features_handler_train = self.train(**train_kwargs)
 
             validate_kwargs = {"dataloader_dict": dataloader_dict, "epoch": epoch}
-            validate_loss, validate_record_dict = self.validate(**validate_kwargs)
+            validate_loss, validate_record_dict, features_handler_val = self.validate(**validate_kwargs)
 
             # if epoch % 1 == 0:
             #     test_kwargs = {"dataloader_dict": dataloader_dict, "epoch": None, "train_mode": 0}
@@ -118,8 +118,12 @@ class Trainer(GenericVideoTrainer):
 
 
             if validate_ccc > self.best_epoch_info['f1_score_average']:
+                
                 torch.save(self.model.state_dict(), os.path.join(self.save_path, "model_state_dict" + str(validate_ccc) + ".pth"))
 
+                features_handler_train.save_features()
+                features_handler_val.save_features()
+                
                 improvement = True
                 self.best_epoch_info = {
                     'model_weights': copy.deepcopy(self.model.state_dict()),
