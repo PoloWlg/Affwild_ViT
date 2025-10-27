@@ -549,6 +549,6 @@ class FeaturesHandler(object):
         return trial_record
     
     def save_features(self):
-        return 
+        # return 
         for key in self.trialwise_records:
             np.save(os.path.join('/projets/AS84330/Datasets2/Abaw6_EXPR_contextual/compacted_48/', key, "clip_feats.npy"), self.trialwise_records[key])

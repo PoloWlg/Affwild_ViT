@@ -83,7 +83,7 @@ class Experiment(GenericExperiment):
     def run(self):
 
         # criterion = CCCLoss()
-        criterion = torch.nn.CrossEntropyLoss()
+        criterion = torch.nn.CrossEntropyLoss(label_smoothing=0.1)
         if self.weighted_ce_loss:
             class_weights = 1 / torch.tensor([179503, 17153, 10978, 9110, 94344, 81054, 30639, 171407]).to(self.device)
             criterion = torch.nn.CrossEntropyLoss(weight=class_weights, label_smoothing=0.1)

@@ -491,6 +491,7 @@ class Proposed(nn.Module):
         tcn_channels = [768, 256, 128]
         self.temporal = TemporalConvNet(num_inputs=tcn_channels[0],
                                         num_channels=tcn_channels,
+                                        dropout=0.3,
                                         kernel_size=5, 
                                         attention=False,
                                         ).to(self.device)
@@ -502,7 +503,8 @@ class Proposed(nn.Module):
         )
         
         self.mlp2 = Sequential(
-            nn.Linear(768, 8)
+            # nn.Dropout(p=0.3),
+            nn.Linear(128, 8)
         )
        
 
@@ -519,8 +521,9 @@ class Proposed(nn.Module):
                 # return x_video, None
                 
                 clip_feats = X['clip_feats']
-                clip_feats = clip_feats.float().to(self.device)
-                clip_feats = clip_feats.reshape(-1, 768)
+                clip_feats = clip_feats.squeeze(1).permute(0,2,1).float()
+                clip_feats = self.temporal(clip_feats)
+                clip_feats = clip_feats.permute(0,2,1)
                 x_video = self.mlp2(clip_feats)
                 return x_video, clip_feats
                 

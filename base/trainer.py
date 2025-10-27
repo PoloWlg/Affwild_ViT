@@ -261,16 +261,17 @@ class GenericVideoTrainer(GenericTrainer):
 
         num_batch_warm_up = len(dataloader) * self.min_epoch
         
-        use_extracted_feats = False
-        extract_feats  = True
+        use_extracted_feats = True
+        extract_feats  = False
         scaler = torch.amp.GradScaler()
         
         for batch_idx, (X, Extracted_Features, trials, lengths, indices) in tqdm(enumerate(dataloader), total=len(dataloader)):
             
             
-            batch_size, length, _, _, _ = X['video'].shape
+            batch_size, length, _ = X['EXPR_continuous_label'].shape
             
             if train_mode:
+                
                 self.scheduler.warmup_lr(self.learning_rate, batch_idx,  num_batch_warm_up)
                 self.optimizer.zero_grad()
 

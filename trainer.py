@@ -35,7 +35,7 @@ class Trainer(GenericVideoTrainer):
         }
 
     def init_optimizer_and_scheduler(self, epoch=0):
-        self.optimizer = optim.AdamW(self.get_parameters(), lr=self.learning_rate, weight_decay=0.1)
+        self.optimizer = optim.AdamW(self.get_parameters(), lr=self.learning_rate, weight_decay=1e-5)
 
 
         self.scheduler = MyWarmupScheduler(

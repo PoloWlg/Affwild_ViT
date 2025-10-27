@@ -224,17 +224,17 @@ class GenericDataset(Dataset):
         if "video" in self.modality:
             if self.mode == 'train':
                 self.transform_dict['video'] = transforms.Compose([
-                    # GroupNumpyToPILImage(0),
-                    # T.RandomCrop(48, 40),
+                    # T.ToPILImage(),
+                    # T.RandomCrop((40, 40)),
+                    # T.RandomHorizontalFlip(),
+                    # T.ToTensor(),
+                    # T.Normalize(
+                    #     mean=[0.485, 0.456, 0.406],  # ImageNet means
+                    #     std=[0.229, 0.224, 0.225]    # ImageNet stds
+                    # )
                     T.ToPILImage(),
-                    T.RandomCrop((40, 40)),
-                    # T.Resize((224, 224)),
-                    T.RandomHorizontalFlip(),
-                    # T.RandomRotation(10),
-                    # T.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
-                    # Stack(),
+                    T.CenterCrop(40),
                     T.ToTensor(),
-                    # T.RandomErasing(p=0.2, scale=(0.02, 0.1)),
                     T.Normalize(
                         mean=[0.485, 0.456, 0.406],  # ImageNet means
                         std=[0.229, 0.224, 0.225]    # ImageNet stds
@@ -374,7 +374,7 @@ class GenericDataset(Dataset):
             example = self.load_data(path, random_index, feature, indice)
 
         if 'video' in feature:
-            example = self.transform_dict[feature](np.asarray(example, dtype=np.uint8).squeeze(0))
+            example = self.transform_dict[feature](np.asarray(example, dtype=np.uint8)[0])
         
         if "context" in feature:
             example = example

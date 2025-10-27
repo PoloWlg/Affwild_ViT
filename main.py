@@ -107,12 +107,12 @@ if __name__ == '__main__':
     parser.add_argument('-folds_to_run', default=[0], nargs="+", type=int, help='Which fold(s) to run? Each fold may take 1-2 days.')
 
     # 2.2. Epochs and data
-    parser.add_argument('-num_epochs', default=5, type=int, help='The total of epochs to run during training.')
-    parser.add_argument('-min_num_epochs', default=5, type=int, help='The minimum epoch to run at least.')
+    parser.add_argument('-num_epochs', default=20, type=int, help='The total of epochs to run during training.')
+    parser.add_argument('-min_num_epochs', default=1, type=int, help='The minimum epoch to run at least.')
     parser.add_argument('-early_stopping', default=50, type=int,
                         help='If no improvement, the number of epoch to run before halting the training')
-    parser.add_argument('-window_length', default=1, type=int, help='The length in point number to windowing the data.')
-    parser.add_argument('-hop_length', default=1, type=int, help='The step size or stride to move the window.')
+    parser.add_argument('-window_length', default=300, type=int, help='The length in point number to windowing the data.')
+    parser.add_argument('-hop_length', default=200, type=int, help='The step size or stride to move the window.')
     parser.add_argument('-batch_size', default=2, type=int)
 
     # 2.1. Scheduler and Parameter Control
