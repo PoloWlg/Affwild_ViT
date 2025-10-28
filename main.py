@@ -22,7 +22,7 @@ if __name__ == '__main__':
 
     # 1. Experiment Setting
     # 1.1. Server
-    parser.add_argument('-gpu', default=2, type=int, help='Which gpu to use?')
+    parser.add_argument('-gpu', default=3, type=int, help='Which gpu to use?')
     parser.add_argument('-cpu', default=5, type=int, help='How many threads are allowed?')
     parser.add_argument('-high_performance_cluster', default=1, type=int, help='On high-performance server or not?'
                                                                                'If set to 1, then the gpu and cpu settings will be ignored.'
@@ -113,7 +113,7 @@ if __name__ == '__main__':
                         help='If no improvement, the number of epoch to run before halting the training')
     parser.add_argument('-window_length', default=300, type=int, help='The length in point number to windowing the data.')
     parser.add_argument('-hop_length', default=200, type=int, help='The step size or stride to move the window.')
-    parser.add_argument('-batch_size', default=2, type=int)
+    parser.add_argument('-batch_size', default=4, type=int)
 
     # 2.1. Scheduler and Parameter Control
     parser.add_argument('-seed', default=4, type=int)

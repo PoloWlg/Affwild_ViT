@@ -97,8 +97,8 @@ class Experiment(GenericExperiment):
             torch.cuda.ipc_collect()
             
             wandb.init(
-                project=f"Finetune", 
-                name=f"lr_{self.args.learning_rate}-bs_{self.args.batch_size}-self.args.unfreeze_all_clip_{self.args.unfreeze_all_clip}",
+                project=f"My fine tuning final experiments", 
+                name=f"lr_{self.args.learning_rate}-bs_{self.args.batch_size}",
                 config={
                     "gpu": self.args.gpu,
                     "epochs": self.args.num_epochs,

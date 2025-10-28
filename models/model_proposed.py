@@ -300,7 +300,7 @@ class CAN2(nn.Module):
         elif self.args.context_feature_model == 'llama2':
             model_id = "meta-llama/Llama-2-7b-hf"
             # Login first with: huggingface-cli login
-            token = "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"
+            token = ""
             tokenizer = AutoTokenizer.from_pretrained(model_id, token=token)
             tokenizer.pad_token = tokenizer.eos_token
 
@@ -542,8 +542,3 @@ class Proposed(nn.Module):
                 # clip_feats = clip_feats.hidden_states[-1][:, 0, :]
                 x_video = self.mlp2(clip_feats)
                 return x_video, clip_feats
-            
-            
-            
-            
-        
