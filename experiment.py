@@ -6,7 +6,7 @@ from trainer import Trainer
 from dataset import DataArranger, Dataset
 from base.checkpointer import Checkpointer
 from models.model import LFAN, CAN
-from models.model_proposed import CAN2, Video_only, Proposed
+from models.model_proposed import  Video_only, Proposed
 
 from base.parameter_control import ResnetParamControl
 

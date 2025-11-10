@@ -178,11 +178,23 @@ class Proposed(nn.Module):
                                         attention=False,
                                         ).to(self.device)
         
+        # tcn_channels = [128, 128, 128]
+        # self.temporal_audio = TemporalConvNet(num_inputs=tcn_channels[0],
+        #                                 num_channels=tcn_channels,
+        #                                 dropout=0.3,
+        #                                 kernel_size=5, 
+        #                                 attention=False,
+        #                                 ).to(self.device)
+        
         self.mlp = Sequential(
             nn.Linear(128, 64),
             nn.BatchNorm1d(64),
             nn.Linear(64, 8)
         )
+        
+        # self.log_temperature = nn.Parameter(torch.tensor(0.0))
+        # self.log_temperature_all_emotions = nn.Parameter(torch.zeros(8))
+        
         
         self.mlp2 = Sequential(
             # nn.Dropout(p=0.3),
@@ -202,11 +214,30 @@ class Proposed(nn.Module):
                 # x_video = self.mlp(x_video)
                 # return x_video, None
                 
+                
                 clip_feats = X['clip_feats']
                 clip_feats = clip_feats.squeeze(1).permute(0,2,1).float()
+                
+                # audio_feats = X['vggish']
+                # audio_feats = audio_feats.squeeze(1).permute(0,2,1).float()    
+                
+                # Temporal
                 clip_feats = self.temporal(clip_feats)
+                # audio_feats = self.temporal_audio(audio_feats)
+                
+                # concat_feats = torch.cat((clip_feats, audio_feats), dim=1)
+                # concat_feats = concat_feats.permute(0,2,1)
                 clip_feats = clip_feats.permute(0,2,1)
                 x_video = self.mlp2(clip_feats)
+                
+                # Stimuli weight multiplication
+                # temperature = torch.exp(self.log_temperature)
+                # # temperature = 0.5
+                # stimuli_weights = X['stimuli_weights'].to(self.device)  
+                # stimuli_weights = stimuli_weights.unsqueeze(1).expand(-1, x_video.size(1), -1)  
+                # stimuli_weights = F.softmax(stimuli_weights / temperature, dim=-1) # Forgot softmax ? 
+                # x_video = x_video * stimuli_weights
+                
                 return x_video, clip_feats
                 
             

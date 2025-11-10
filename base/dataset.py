@@ -5,7 +5,7 @@ from collections import OrderedDict
 
 from torch.utils.data import Dataset
 from torchvision.transforms import transforms
-
+from sentence_transformers import SentenceTransformer, util
 import torchvision.transforms as T
 
 from base.transforms3D import *
@@ -190,6 +190,15 @@ class GenericDataset(Dataset):
         
         self.tokenizer = RobertaTokenizer.from_pretrained('roberta-base', truncation=True, do_lower_case=True, clean_up_tokenization_spaces=True, model_max_length=512)
 
+        # Load stimuli similarity weights
+        stimuliSimilarity_instance = StimuliSimilarity()
+        self.stimuli_weights = stimuliSimilarity_instance.all_videos_weights
+        
+    
+    
+    
+    
+    
     def init_continuous_label(self):
         path = '/projets/AS84330/Datasets2/Abaw6_EXPR_contextual/compacted_48/'
         videos = []
@@ -321,11 +330,11 @@ class GenericDataset(Dataset):
         examples['EXPR_continuous_label'] = self.get_features('EXPR_continuous_label', trial, length, index)
         # examples['context'] = self.get_example(path, length, index, 'context', indice)
         examples['video'] = self.get_example(path, length, index, 'video', indice)
+        examples['vggish'] = self.get_example(path, length, index, 'vggish', indice)
         
         extracted_features['clip_feats'] =  self.get_example(path, length, index, 'clip_feats', indice)
-        
-        
-        
+        extracted_features['stimuli_weights'] =  self.get_stimuli_weight(trial)
+  
         if len(index) < self.window_length:
             index = np.arange(self.window_length)
         return examples, extracted_features, trial, length, index
@@ -334,7 +343,10 @@ class GenericDataset(Dataset):
         return len(self.data_list)
 
     
-    
+    def get_stimuli_weight(self, trial):
+        trial = trial.replace('_left', '').replace('_right', '')
+        return self.stimuli_weights[trial]
+        
     def get_features(self, modal, trial, length, indices):
         
         if modal == 'features_video':
@@ -443,4 +455,72 @@ class GenericDataset(Dataset):
         sentence_embeddings = model.encode(context_data)
         return sentence_embeddings
     
+
+
+class StimuliSimilarity(object):
+    def __init__(self):
+        self.emotion_embeddings = self.load_emotion_embeddings()
+        self.all_videos_weights = self.load_stimuli_weights()
+        
+    def load_emotion_embeddings(self):
+        model = SentenceTransformer('BAAI/bge-m3')
+        
+        # sentence_neutral = "Neutral scene"
+        # sentence_anger = "Angry scene"
+        # sentence_digusting = "disgusting scene"
+        # sentence_fear = "Fearfull scene"
+        # sentence_happy = "Happy scene"
+        # sentence_sad = "Sad scene"
+        # sentence_surpise = "Surprising scene"
+        # sentence_other = "Other scene"
+        
+        sentence_neutral = "The scene shows a person sitting in a well-lit room, speaking calmly to the camera. Their expression is relaxed, and the atmosphere is balanced with no strong emotion."
+        sentence_anger = "The scene shows a person raising their voice and frowning. Their gestures are sharp, and their body language is tense, indicating frustration or irritation."
+        sentence_digusting = "The scene shows a person reacting with discomfort as they watch or smell something unpleasant. They grimace and slightly pull away, expressing aversion."
+        sentence_fear = "The scene takes place in a dark environment. The person appears tense and cautious, with widened eyes and hesitant movements, as if anticipating danger."
+        sentence_happy = "The scene shows a person smiling and laughing in a bright setting. Their tone and gestures are lively, creating a sense of joy and comfort."
+        sentence_sad = "The scene shows a person with a downcast expression, speaking softly or remaining silent. Their posture is slouched, and the mood is somber and reflective."
+        sentence_surpise = "The scene captures a moment of sudden reaction — the person’s eyes widen and mouth opens slightly, showing astonishment or disbelief."
+        sentence_other = "Other scene"
+        
+        emb2 = model.encode(sentence_neutral, convert_to_tensor=True)
+        emb3 = model.encode(sentence_anger, convert_to_tensor=True)
+        emb4 = model.encode(sentence_digusting, convert_to_tensor=True)
+        emb5 = model.encode(sentence_fear, convert_to_tensor=True)
+        emb6 = model.encode(sentence_happy, convert_to_tensor=True)
+        emb7 = model.encode(sentence_sad, convert_to_tensor=True)
+        emb8 = model.encode(sentence_surpise, convert_to_tensor=True)
+        emb9 = model.encode(sentence_other, convert_to_tensor=True)
+        
+        return [emb2, emb3, emb4, emb5, emb6, emb7, emb8, emb9]
     
+    def compute_similarity(self, sentence):
+        model = SentenceTransformer('BAAI/bge-m3')
+        emb1 = model.encode(sentence, convert_to_tensor=True)
+        similarities = []
+        for emotion_emb in self.emotion_embeddings:
+            cosine_sim = util.cos_sim(emb1, emotion_emb)
+            similarities.append(cosine_sim[0][0].item())
+        
+        return similarities
+    
+    def load_stimuli_weights(self):
+        model = SentenceTransformer('BAAI/bge-m3')
+        root_path = '/home/ens/AS84330/Stimuli/Affwild/ABAW3_EXPR4/Stimuli_preprocessing/video_stimuli/video_based'
+        all_weights = os.listdir(root_path)
+        
+        stimuli_weights = {}
+        for weight in all_weights:
+            path = os.path.join(root_path, weight)
+            with open(path, "r", encoding="utf-8") as f:
+                text_stimuli = f.read() 
+            text_embeddings = model.encode(text_stimuli, convert_to_tensor=True)
+            
+            similarities = []
+            for emotion_emb in self.emotion_embeddings:
+                cosine_sim = util.cos_sim(text_embeddings, emotion_emb)
+                similarities.append(cosine_sim[0][0].item())
+
+            stimuli_weights[weight.replace('_description.txt', '')] = torch.tensor(similarities)
+            
+        return stimuli_weights

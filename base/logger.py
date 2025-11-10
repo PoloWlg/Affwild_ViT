@@ -18,6 +18,8 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 import logging
+import cv2
+
 
 # Suppress only the specific warning from root logger
 logging.getLogger("root").setLevel(logging.ERROR)
@@ -408,6 +410,32 @@ class ContinuousMetricsCalculator(object):
         return self.output_handler.trialwise_records, \
                self.continuous_label_handler.trialwise_records
 
+    def get_trialwise_official_output_and_continuous_label(self, train_mode, save_path):
+        # Get output with official label with -1 added back
+        
+        data_set = 'Train_Set' if train_mode else 'Validation_Set'
+        trialwise_official_records = {
+            'output': {},
+            'continuous_label': {}
+        }
+        save_path = os.path.join(save_path, 'outputs_predictions', data_set)
+        os.makedirs(save_path, exist_ok=True)
+        
+        for video in self.continuous_label_handler.trialwise_records:
+            official_label = np.loadtxt(f"/projets/AS84330/Datasets/Abaw6/6th_ABAW_Annotations/EXPR_Recognition_Challenge/{data_set}/{video}.txt", delimiter=",", skiprows=1)
+            
+            mask = official_label != -1
+            output = np.repeat(official_label[:, None], 8, axis=1)
+            if len(output[mask]) != len(self.output_handler.trialwise_records[video]): 
+                raise ValueError('Length mismatch between official labels and model outputs')
+            
+            output[mask] = self.output_handler.trialwise_records[video]
+            trialwise_official_records['output'][video] = output
+            trialwise_official_records['continuous_label'][video] = official_label
+            np.savetxt(os.path.join(save_path, f"{video}_output.txt"), output, fmt="%.6f", delimiter=",", header="Neutral,Anger,Disgust,Fear,Happiness,Sadness,Surprise,Other")
+            
+        return  trialwise_official_records
+
     def init_metric_record_dict(self):
         trialwise_dict, _ = self.get_trialwise_output_and_continuous_label()
         metric_record_dict = {key: [] for key in trialwise_dict}
@@ -552,3 +580,49 @@ class FeaturesHandler(object):
         # return 
         for key in self.trialwise_records:
             np.save(os.path.join('/projets/AS84330/Datasets2/Abaw6_EXPR_contextual/compacted_48/', key, "clip_feats.npy"), self.trialwise_records[key])
+            
+            
+
+def video_visualization():
+    EMOTION_CAT = ["Neutral","Anger","Disgust","Fear","Happiness","Sadness","Surprise","Other"]
+
+    # Load annotations
+    with open("annotations.txt", "r") as f:
+        annotations = [line.strip() for line in f.readlines()]
+
+    # Open video
+    video_path = "video.mp4"
+    cap = cv2.VideoCapture(video_path)
+
+    num_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    print(f"Video has {num_frames} frames at {fps} fps")
+
+    # Output video writer
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter('video_with_annotations.mp4', fourcc, fps,
+                        (int(cap.get(3)), int(cap.get(4))))
+
+    frame_idx = 1
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret or frame_idx >=30000:
+            break
+        
+        if frame_idx == 3000:
+            break
+
+        groud_truth = annotations[frame_idx]
+        groud_truth = EMOTION_CAT[int(groud_truth)] 
+        # Draw annotation text
+        cv2.putText(frame, f'GROUND TRUTH: {groud_truth}', (30, 50), cv2.FONT_HERSHEY_SIMPLEX,
+                    1.2, (0, 255, 0), 2, cv2.LINE_AA)
+        
+        cv2.putText(frame, f'FACE PREDICTION: {groud_truth}', (30, 100), cv2.FONT_HERSHEY_SIMPLEX,
+                    1.2, (0, 255, 0), 2, cv2.LINE_AA)
+        out.write(frame)
+        frame_idx += 1
+
+    cap.release()
+    out.release()
+    print("Saved video_with_annotations.mp4 ✅")

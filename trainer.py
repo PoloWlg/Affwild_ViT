@@ -68,7 +68,12 @@ class Trainer(GenericVideoTrainer):
                     break
 
             improvement = False
-
+            # for param in self.model.parameters():
+            #     param.requires_grad = False
+                
+            # self.model.log_temperature.requires_grad = True
+            # self.model.log_temperature_all_emotions.requires_grad = True
+                
             if epoch in self.milestone or (parameter_controller.get_current_lr() < self.min_learning_rate and epoch >= self.min_epoch and self.scheduler.relative_epoch > self.min_epoch):
                 parameter_controller.release_param(self.model.spatial, epoch)
                 
@@ -96,16 +101,20 @@ class Trainer(GenericVideoTrainer):
 
             # Get the losses and the record dictionaries for training and validation.
             train_kwargs = {"dataloader_dict": dataloader_dict, "epoch": epoch}
-            train_loss, train_record_dict, features_handler_train = self.train(**train_kwargs)
+            train_loss, train_record_dict, features_handler_train, trialwise_output_and_continuous_label_train = self.train(**train_kwargs)
 
             validate_kwargs = {"dataloader_dict": dataloader_dict, "epoch": epoch}
-            validate_loss, validate_record_dict, features_handler_val = self.validate(**validate_kwargs)
+            validate_loss, validate_record_dict, features_handler_val, trialwise_output_and_continuous_label_val = self.validate(**validate_kwargs)
 
             # if epoch % 1 == 0:
             #     test_kwargs = {"dataloader_dict": dataloader_dict, "epoch": None, "train_mode": 0}
             #     validate_loss, test_record_dict = self.test(checkpoint_controller=checkpoint_controller, feature_extraction=0, **test_kwargs)
             #     print(test_record_dict['overall']['ccc'])
-
+            
+            # Save validate record dict 
+            import pickle
+            with open(f"{self.save_path}/validate_dict.pkl", "wb") as f:
+                pickle.dump(validate_record_dict, f)
             if validate_loss < 0:
                 raise ValueError('validate loss negative')
 
@@ -113,7 +122,7 @@ class Trainer(GenericVideoTrainer):
             self.validate_losses.append(validate_loss)
 
             validate_ccc = validate_record_dict['overall']['f1_score_average']
-
+            
             self.scheduler.best = self.best_epoch_info['f1_score_average']
 
 

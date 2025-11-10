@@ -52,16 +52,16 @@ class GenericTrainer(object):
     def train(self, **kwargs):
         kwargs['train_mode'] = True
         self.model.train()
-        loss, result_dict, features_handler = self.loop(**kwargs)
-        return loss, result_dict, features_handler
+        loss, result_dict, features_handler, trialwise_output_and_continuous_label = self.loop(**kwargs)
+        return loss, result_dict, features_handler, trialwise_output_and_continuous_label
 
     def validate(self, **kwargs):
 
         kwargs['train_mode'] = False
         with torch.no_grad():
             self.model.eval()
-            loss, result_dict, features_handler = self.loop(**kwargs)
-        return loss, result_dict, features_handler
+            loss, result_dict, features_handler, trialwise_output_and_continuous_label = self.loop(**kwargs)
+        return loss, result_dict, features_handler, trialwise_output_and_continuous_label
 
     def test(self, checkpoint_controller, predict_only=0, **kwargs):
         kwargs['train_mode'] = False
@@ -349,7 +349,8 @@ class GenericVideoTrainer(GenericTrainer):
                                        directory_to_save_plot=self.save_path)
             plot_handler.save_output_vs_continuous_label_plot()
 
-        return epoch_loss, epoch_result_dict, features_handler
+        trialwise_official_output_and_continuous_label = metric_handler.get_trialwise_official_output_and_continuous_label(train_mode, self.save_path)
+        return epoch_loss, epoch_result_dict, features_handler, trialwise_official_output_and_continuous_label
 
     def predict_loop(self, **kwargs):
         partition = kwargs['partition']

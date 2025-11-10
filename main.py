@@ -56,7 +56,9 @@ if __name__ == '__main__':
     parser.add_argument('-resume', default=0, type=int, help='Resume from checkpoint?')
     
     # Load Weights or not ?
+    #parser.add_argument('-load_weights', default='weights_saved/best_model_0.414/model_state_dict0.4208_temp.pth',type=str, help='Path of the weights to load')
     parser.add_argument('-load_weights', default='',type=str, help='Path of the weights to load')
+    
     parser.add_argument('-load_weights_res50', default='', type=str, help='Path of the weights to load')
 
     # 1.5. Debug or not?
