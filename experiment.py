@@ -5,8 +5,8 @@ from trainer import Trainer
 
 from dataset import DataArranger, Dataset
 from base.checkpointer import Checkpointer
-from models.model import LFAN, CAN
-from models.model_proposed import  Video_only, Proposed
+from models.model import LFAN
+from models.model_proposed import  Video_only, Proposed, CAN
 
 from base.parameter_control import ResnetParamControl
 
@@ -83,7 +83,7 @@ class Experiment(GenericExperiment):
     def run(self):
 
         # criterion = CCCLoss()
-        criterion = torch.nn.CrossEntropyLoss(label_smoothing=0.1)
+        criterion = torch.nn.CrossEntropyLoss()
         if self.weighted_ce_loss:
             class_weights = 1 / torch.tensor([179503, 17153, 10978, 9110, 94344, 81054, 30639, 171407]).to(self.device)
             criterion = torch.nn.CrossEntropyLoss(weight=class_weights, label_smoothing=0.1)
@@ -191,13 +191,14 @@ class Experiment(GenericExperiment):
                                                    root_dir=self.load_path, device=self.device)
             model.init()
         elif self.model_name == "CAN":
-            model = CAN(root_dir=self.load_path, fusion_method=self.args.fusion_method , modalities=modality, tcn_settings=self.config['tcn_settings'], backbone_settings=self.config['backbone_settings'], output_dim=len(self.continuous_label_dim), device=self.device, frozen_resnet50 = self.frozen_resnet50)
+            model = CAN(device=self.device)
         elif self.model_name == "CAN2":
             model = CAN2(root_dir=self.load_path, fusion_method=self.args.fusion_method , modalities=modality, tcn_settings=self.config['tcn_settings'], backbone_settings=self.config['backbone_settings'], output_dim=len(self.continuous_label_dim), device=self.device, semantic_context_path=self.semantic_context_path, compute_att_maps=self.compute_att_maps, frozen_resnet50 = self.frozen_resnet50, args = self.args)
         elif self.model_name == "Video_only":    
             model = Video_only(root_dir=self.load_path, device=self.device, backbone_settings=self.config['backbone_settings'], frozen_resnet50=self.frozen_resnet50)
         elif self.model_name == "Proposed":    
             model = Proposed(root_dir=self.load_path, device=self.device, backbone_settings=self.config['backbone_settings'], frozen_resnet50=self.frozen_resnet50, args=self.args)
+        
     
         return model
 

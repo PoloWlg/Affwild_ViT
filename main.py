@@ -22,7 +22,7 @@ if __name__ == '__main__':
 
     # 1. Experiment Setting
     # 1.1. Server
-    parser.add_argument('-gpu', default=3, type=int, help='Which gpu to use?')
+    parser.add_argument('-gpu', default=1, type=int, help='Which gpu to use?')
     parser.add_argument('-cpu', default=5, type=int, help='How many threads are allowed?')
     parser.add_argument('-high_performance_cluster', default=1, type=int, help='On high-performance server or not?'
                                                                                'If set to 1, then the gpu and cpu settings will be ignored.'
@@ -56,7 +56,9 @@ if __name__ == '__main__':
     parser.add_argument('-resume', default=0, type=int, help='Resume from checkpoint?')
     
     # Load Weights or not ?
-    #parser.add_argument('-load_weights', default='weights_saved/best_model_0.414/model_state_dict0.4208_temp.pth',type=str, help='Path of the weights to load')
+    #parser.add_argument('-load_weights', default='/home/ens/AS84330/Stimuli/Affwild/ABAW3_EXPR4/weights_saved/test_Proposed__fold0_valence_seed4/model_state_dict0.3981.pth',type=str, help='Path of the weights to load')
+    #parser.add_argument('-load_weights', default='/home/ens/AS84330/Stimuli/Affwild/ABAW3_EXPR4/weights_saved/test_CAN__fold0_valence_seed4/model_state_dict0.4142.pth',type=str, help='Path of the weights to load')
+    # parser.add_argument('-load_weights', default='/home/ens/AS84330/Stimuli/Affwild/ABAW3_EXPR4/weights_saved/test_CAN__fold0_valence_seed4/model_state_dict0.4142.pth',type=str, help='Path of the weights to load')
     parser.add_argument('-load_weights', default='',type=str, help='Path of the weights to load')
     
     parser.add_argument('-load_weights_res50', default='', type=str, help='Path of the weights to load')
@@ -95,7 +97,7 @@ if __name__ == '__main__':
                         help='The size of the 1D kernel for temporal convolutional networks.')
 
     # 2.1. Overall settings
-    parser.add_argument('-model_name', default="Proposed", help='LFAN, CAN, CAN2, Video_only, Proposed')
+    parser.add_argument('-model_name', default="CAN", help='LFAN, CAN, CAN2, Video_only, Proposed')
     parser.add_argument('-fusion_method', default="Video_only", help='concat, attention, proposed1, proposed2_orthogonal')
     parser.add_argument('-frozen_resnet50',type=int, default=1, help='True for frozen False for unfrozen')
     parser.add_argument('-compute_att_maps',type=int, default=0, help='Computing attention maps')
@@ -120,7 +122,7 @@ if __name__ == '__main__':
     # 2.1. Scheduler and Parameter Control
     parser.add_argument('-seed', default=4, type=int)
     parser.add_argument('-scheduler', default='plateau', type=str, help='plateau, cosine')
-    parser.add_argument('-learning_rate', default=1e-5, type=float, help='The initial learning rate.')
+    parser.add_argument('-learning_rate', default=1e-4, type=float, help='The initial learning rate.')
     parser.add_argument('-fixed_lr', default=True, type=bool, help='Whether or not to fix the learning rate ')
     parser.add_argument('-min_learning_rate', default=1.e-7, type=float, help='The minimum learning rate.')
     parser.add_argument('-patience', default=2, type=int, help='Patience for learning rate changes.')

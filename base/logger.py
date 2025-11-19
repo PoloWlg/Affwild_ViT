@@ -422,7 +422,8 @@ class ContinuousMetricsCalculator(object):
         os.makedirs(save_path, exist_ok=True)
         
         for video in self.continuous_label_handler.trialwise_records:
-            official_label = np.loadtxt(f"/projets/AS84330/Datasets/Abaw6/6th_ABAW_Annotations/EXPR_Recognition_Challenge/{data_set}/{video}.txt", delimiter=",", skiprows=1)
+            # official_label = np.loadtxt(f"/projets/AS84330/Datasets/Abaw6/6th_ABAW_Annotations/EXPR_Recognition_Challenge/{data_set}/{video}.txt", delimiter=",", skiprows=1)
+            official_label = np.loadtxt(f"/projets/AS84330/Datasets/Abaw6/6th_ABAW_Annotations/EXPR_Recognition_Challenge/All_set/{video}.txt", delimiter=",", skiprows=1)
             
             mask = official_label != -1
             output = np.repeat(official_label[:, None], 8, axis=1)

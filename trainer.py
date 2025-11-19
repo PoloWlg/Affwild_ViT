@@ -68,8 +68,12 @@ class Trainer(GenericVideoTrainer):
                     break
 
             improvement = False
-            # for param in self.model.parameters():
+            # for name, param in self.model.named_parameters():
             #     param.requires_grad = False
+            #     if name.startswith('gate'):
+            #         param.requires_grad = True
+                
+            # self.model.gate.requires_grad = True
                 
             # self.model.log_temperature.requires_grad = True
             # self.model.log_temperature_all_emotions.requires_grad = True
@@ -87,7 +91,7 @@ class Trainer(GenericVideoTrainer):
 
             if epoch == 0 and self.load_weights: 
                 print('load weights for the model ...')
-                self.model.load_state_dict(torch.load(self.load_weights, map_location=self.device))
+                self.model.load_state_dict(torch.load(self.load_weights, map_location=self.device), strict=False)
                 
             if epoch == 0 and self.load_weights_res50: 
                 print('load weights for the resnet50 model ...')
@@ -113,6 +117,8 @@ class Trainer(GenericVideoTrainer):
             
             # Save validate record dict 
             import pickle
+            with open(f"{self.save_path}/train_dict.pkl", "wb") as f:
+                pickle.dump(train_record_dict, f)
             with open(f"{self.save_path}/validate_dict.pkl", "wb") as f:
                 pickle.dump(validate_record_dict, f)
             if validate_loss < 0:

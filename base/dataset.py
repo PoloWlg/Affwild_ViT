@@ -16,6 +16,8 @@ from transformers import RobertaModel, RobertaTokenizer
 from sentence_transformers import SentenceTransformer
 
 from tqdm import tqdm
+import pickle
+
 
 
 class GenericDataArranger(object):
@@ -328,12 +330,12 @@ class GenericDataset(Dataset):
         extracted_features = {}
         
         examples['EXPR_continuous_label'] = self.get_features('EXPR_continuous_label', trial, length, index)
-        # examples['context'] = self.get_example(path, length, index, 'context', indice)
+        examples['context'] = self.get_example(path, length, index, 'context', indice)
         examples['video'] = self.get_example(path, length, index, 'video', indice)
         examples['vggish'] = self.get_example(path, length, index, 'vggish', indice)
         
         extracted_features['clip_feats'] =  self.get_example(path, length, index, 'clip_feats', indice)
-        extracted_features['stimuli_weights'] =  self.get_stimuli_weight(trial)
+        extracted_features['stimuli_weights'] =  self.get_stimuli_weight(trial, index, length)
   
         if len(index) < self.window_length:
             index = np.arange(self.window_length)
@@ -343,9 +345,18 @@ class GenericDataset(Dataset):
         return len(self.data_list)
 
     
-    def get_stimuli_weight(self, trial):
-        trial = trial.replace('_left', '').replace('_right', '')
-        return self.stimuli_weights[trial]
+    def get_stimuli_weight(self, trial, index, length):
+        
+        if length < self.window_length:
+            shape = (self.window_length, 8) 
+            dtype = np.float32
+            output = np.zeros(shape=shape, dtype=dtype)
+            output[index] =  self.stimuli_weights[trial].permute(1,0)[index]
+            output[index[-1]: self.window_length] = output[index[-1]]
+            output = torch.tensor(output)
+        else: 
+            output = self.stimuli_weights[trial].permute(1,0)[index]
+        return output
         
     def get_features(self, modal, trial, length, indices):
         
@@ -460,28 +471,29 @@ class GenericDataset(Dataset):
 class StimuliSimilarity(object):
     def __init__(self):
         self.emotion_embeddings = self.load_emotion_embeddings()
-        self.all_videos_weights = self.load_stimuli_weights()
+        self.all_videos_weights = self.load_all_weights()
         
     def load_emotion_embeddings(self):
         model = SentenceTransformer('BAAI/bge-m3')
         
-        # sentence_neutral = "Neutral scene"
-        # sentence_anger = "Angry scene"
-        # sentence_digusting = "disgusting scene"
-        # sentence_fear = "Fearfull scene"
-        # sentence_happy = "Happy scene"
-        # sentence_sad = "Sad scene"
-        # sentence_surpise = "Surprising scene"
-        # sentence_other = "Other scene"
-        
-        sentence_neutral = "The scene shows a person sitting in a well-lit room, speaking calmly to the camera. Their expression is relaxed, and the atmosphere is balanced with no strong emotion."
-        sentence_anger = "The scene shows a person raising their voice and frowning. Their gestures are sharp, and their body language is tense, indicating frustration or irritation."
-        sentence_digusting = "The scene shows a person reacting with discomfort as they watch or smell something unpleasant. They grimace and slightly pull away, expressing aversion."
-        sentence_fear = "The scene takes place in a dark environment. The person appears tense and cautious, with widened eyes and hesitant movements, as if anticipating danger."
-        sentence_happy = "The scene shows a person smiling and laughing in a bright setting. Their tone and gestures are lively, creating a sense of joy and comfort."
-        sentence_sad = "The scene shows a person with a downcast expression, speaking softly or remaining silent. Their posture is slouched, and the mood is somber and reflective."
-        sentence_surpise = "The scene captures a moment of sudden reaction — the person’s eyes widen and mouth opens slightly, showing astonishment or disbelief."
+        # Normal Emotions
+        sentence_neutral = "Neutral scene"
+        sentence_anger = "Angry scene"
+        sentence_digusting = "disgusting scene"
+        sentence_fear = "Fearfull scene"
+        sentence_happy = "Happy scene"
+        sentence_sad = "Sad scene"
+        sentence_surpise = "Surprising scene"
         sentence_other = "Other scene"
+        
+        # sentence_neutral = "The scene shows a person sitting in a well-lit room, speaking calmly to the camera. Their expression is relaxed, and the atmosphere is balanced with no strong emotion."
+        # sentence_anger = "The scene shows a person raising their voice and frowning. Their gestures are sharp, and their body language is tense, indicating frustration or irritation."
+        # sentence_digusting = "The scene shows a person reacting with discomfort as they watch or smell something unpleasant. They grimace and slightly pull away, expressing aversion."
+        # sentence_fear = "The scene takes place in a dark environment. The person appears tense and cautious, with widened eyes and hesitant movements, as if anticipating danger."
+        # sentence_happy = "The scene shows a person smiling and laughing in a bright setting. Their tone and gestures are lively, creating a sense of joy and comfort."
+        # sentence_sad = "The scene shows a person with a downcast expression, speaking softly or remaining silent. Their posture is slouched, and the mood is somber and reflective."
+        # sentence_surpise = "The scene captures a moment of sudden reaction — the person’s eyes widen and mouth opens slightly, showing astonishment or disbelief."
+        # sentence_other = "Other scene"
         
         emb2 = model.encode(sentence_neutral, convert_to_tensor=True)
         emb3 = model.encode(sentence_anger, convert_to_tensor=True)
@@ -523,4 +535,40 @@ class StimuliSimilarity(object):
 
             stimuli_weights[weight.replace('_description.txt', '')] = torch.tensor(similarities)
             
+        return stimuli_weights
+    
+    def load_all_weights(self):
+        model = SentenceTransformer('BAAI/bge-m3')
+        root_path = '/projets/AS84330/Datasets2/Abaw6_EXPR_contextual/compacted_48'
+        all_weights = os.listdir(root_path)
+        
+        # path_saved_weights = '/home/ens/AS84330/Stimuli/Affwild/ABAW3_EXPR4/Stimuli_preprocessing/stimuli_weights.pkl'
+        # path_saved_weights = '/home/ens/AS84330/Stimuli/Affwild/ABAW3_EXPR4/Stimuli_preprocessing/stimuli_weights_normal_emotions.pkl'
+        path_saved_weights = '/home/ens/AS84330/Stimuli/Affwild/ABAW3_EXPR4/Stimuli_preprocessing/stimuli_weights.pkl'
+        
+        
+        if os.path.exists(path_saved_weights):
+            with open(path_saved_weights, 'rb') as f:
+                stimuli_weights = pickle.load(f)
+            return stimuli_weights
+        
+        stimuli_weights = {}
+        
+        # print('Computing stimuli weights for all videos ...')
+        for weight in tqdm(all_weights, total=len(all_weights), desc='Computing stimuli weights for all videos ...'):
+            path = os.path.join(root_path, weight, 'context', 'description', 'context.tsv')
+            
+            context_data = pd.read_csv(path, sep='\t')
+            text_embeddings = model.encode(context_data['context'], convert_to_tensor=True)
+            
+            similarities = []
+            for emotion_emb in self.emotion_embeddings:
+                cosine_sim = util.cos_sim(text_embeddings, emotion_emb)
+                similarities.append(cosine_sim[:,0].cpu().numpy())
+
+            stimuli_weights[weight.replace('_description.txt', '')] = torch.tensor(similarities)
+        
+
+        with open(path_saved_weights, "wb") as f:
+            pickle.dump(stimuli_weights, f)
         return stimuli_weights

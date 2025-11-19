@@ -288,7 +288,7 @@ class GenericVideoTrainer(GenericTrainer):
 
             with torch.amp.autocast(device_type = 'cuda' ,dtype=torch.float16):
                 outputs, vit_feats = self.model(inputs, use_extracted_feats)
-            
+                # outputs = torch.rand(batch_size, length, 8).to(self.device)
                 outputs = outputs.view(batch_size, length, 8).permute(0,2,1)
                 labels = labels.permute(0,2,1).squeeze(1).to(torch.long)
                 one_hot = outputs.permute(0,2,1)

@@ -143,6 +143,47 @@ class ResNet18Backbone(nn.Module):
         return x  
     
 
+class AttentionFusion(nn.Module):
+    """ Fuse modalities using attention. """
+
+    def __init__(self,
+                 num_feats_modality: list,
+                 num_out_feats: int = 256):
+        """ Instantiate attention fusion instance.
+
+        Args:
+            num_feats_modality (list): Number of features per modality.
+            num_out_feats (int): Number of output features.
+        """
+
+        super(AttentionFusion, self).__init__()
+
+        self.attn = nn.ModuleList([])
+        for num_feats in num_feats_modality:
+            self.attn.append(
+                nn.Linear(num_feats, num_out_feats))
+
+        self.weights = nn.Linear(num_out_feats * len(num_feats_modality), num_out_feats * len(num_feats_modality))
+        self.num_features = num_out_feats * len(num_feats_modality)
+
+    def forward(self, x: list):
+        """ Forward pass
+
+        Args:
+            x (list): List of modality tensors with dimensions (BS x SeqLen x N).
+        """
+
+        proj_m = []
+        for i, m in enumerate(x.values()):
+            proj_m.append(self.attn[i](m.transpose(1, 2)))
+
+        attn_weights = F.softmax(
+            self.weights(torch.cat(proj_m, -1)), dim=-1)
+
+        out_feats = attn_weights * torch.cat(proj_m, -1)
+
+        return out_feats
+
     
 class Proposed(nn.Module):
     def __init__(self, root_dir, device, backbone_settings, frozen_resnet50, args):
@@ -178,6 +219,14 @@ class Proposed(nn.Module):
                                         attention=False,
                                         ).to(self.device)
         
+        tcn_channels = [4096, 512, 128]
+        self.temporal_context = TemporalConvNet(num_inputs=tcn_channels[0],
+                                        num_channels=tcn_channels,
+                                        dropout=0.3,
+                                        kernel_size=5, 
+                                        attention=False,
+                                        ).to(self.device)
+        
         # tcn_channels = [128, 128, 128]
         # self.temporal_audio = TemporalConvNet(num_inputs=tcn_channels[0],
         #                                 num_channels=tcn_channels,
@@ -196,10 +245,29 @@ class Proposed(nn.Module):
         # self.log_temperature_all_emotions = nn.Parameter(torch.zeros(8))
         
         
-        self.mlp2 = Sequential(
+        self.mlp_vis = Sequential(
             # nn.Dropout(p=0.3),
             nn.Linear(128, 8)
         )
+        
+        self.mlp_context = Sequential(
+            # nn.Dropout(p=0.3),
+            nn.Linear(128, 8)
+        )
+        
+        self.mlp = Sequential(
+            nn.Linear(256, 8),)
+        
+        self.gate = nn.Parameter(torch.ones(8))
+        
+        self.fuse = AttentionFusion([128], num_out_feats=128)
+        self.bn1 = nn.BatchNorm1d(128)
+        self.bn2 = nn.BatchNorm1d(128)
+        
+        self.fc1 = nn.Linear(128, 128)
+        self.bn3 = nn.BatchNorm1d(128)
+        self.fc2 = nn.Linear(128, 8)
+        
        
 
     def forward(self, X, use_extracted_feats):
@@ -214,6 +282,8 @@ class Proposed(nn.Module):
                 # x_video = self.mlp(x_video)
                 # return x_video, None
                 
+                context_feats = X['context']
+                context_feats = context_feats.squeeze(1).permute(0,2,1)
                 
                 clip_feats = X['clip_feats']
                 clip_feats = clip_feats.squeeze(1).permute(0,2,1).float()
@@ -223,13 +293,28 @@ class Proposed(nn.Module):
                 
                 # Temporal
                 clip_feats = self.temporal(clip_feats)
+                clip_feats = self.bn1(clip_feats)
+                context_feats = self.temporal_context(context_feats)
+                context_feats = self.bn2(context_feats)
+                
                 # audio_feats = self.temporal_audio(audio_feats)
                 
                 # concat_feats = torch.cat((clip_feats, audio_feats), dim=1)
                 # concat_feats = concat_feats.permute(0,2,1)
-                clip_feats = clip_feats.permute(0,2,1)
-                x_video = self.mlp2(clip_feats)
                 
+                x_concat = self.fuse({'video': clip_feats})
+                # x_concat = self.mlp(x_concat)
+                
+                c = self.fc1(x_concat).transpose(1, 2)
+                c = self.bn1(c).transpose(1, 2)
+                c = F.leaky_relu(c)
+                c = self.fc2(c)
+                c = torch.tanh(c)
+                #x_video = self.mlp_vis(clip_feats.permute(0,2,1))
+                #x_context = self.mlp_context(context_feats.permute(0,2,1))
+                
+                # g = self.gate.unsqueeze(0).unsqueeze(0).expand(x_video.size(0), x_video.size(1), -1)
+                # x_concat = x_video * g + X['stimuli_weights'] * (1 - g)
                 # Stimuli weight multiplication
                 # temperature = torch.exp(self.log_temperature)
                 # # temperature = 0.5
@@ -238,7 +323,8 @@ class Proposed(nn.Module):
                 # stimuli_weights = F.softmax(stimuli_weights / temperature, dim=-1) # Forgot softmax ? 
                 # x_video = x_video * stimuli_weights
                 
-                return x_video, clip_feats
+                # out = F.softmax(x_video, dim=2) * X['stimuli_weights']
+                return c , clip_feats
                 
             
             else: 
@@ -255,3 +341,92 @@ class Proposed(nn.Module):
                 # clip_feats = clip_feats.hidden_states[-1][:, 0, :]
                 x_video = self.mlp2(clip_feats)
                 return x_video, clip_feats
+            
+class CAN(nn.Module):
+    def __init__(self, device):
+        super().__init__()
+        self.device = device
+        
+        modalities = ['clip_feats','vggish']
+        tcn_settings = {
+            'clip_feats': {
+                'input_dim': 768,
+                'channel': [768, 256, 128],
+                'kernel_size': 5
+            },
+            'context': {
+                'input_dim': 4096,
+                'channel': [4096, 512, 128],
+                'kernel_size': 5 
+            },
+            'vggish': {
+                'input_dim': 128,
+                'channel': [128, 128, 128],
+                'kernel_size': 5
+                }
+            }
+
+
+        self.temporal = nn.ModuleDict()
+        self.up_sample = nn.ModuleDict()
+        self.bn = nn.ModuleDict()
+
+        self.spatial = nn.ModuleDict()
+
+
+        for modal in modalities:
+            self.temporal[modal] = TemporalConvNet(num_inputs=tcn_settings[modal]['input_dim'],
+                                                   num_channels=tcn_settings[modal]['channel'],
+                                                   kernel_size=tcn_settings[modal]['kernel_size'])
+            self.bn[modal] = BatchNorm1d(tcn_settings[modal]['channel'][-1] )
+
+
+        feas_modalities = [tcn_settings[modal]['channel'][-1] for modal in modalities]
+        self.fuse = AttentionFusion(num_feats_modality=feas_modalities, num_out_feats=128)
+
+        self.conv_c = nn.Conv1d(128 * len(modalities), 128, 1)
+
+        self.bn1 = BatchNorm1d(128 * len(modalities))
+        self.fc1 = Linear(128* len(modalities), 128* len(modalities))
+        self.fc2 = Linear(128* len(modalities), 8)
+
+
+    
+
+
+    def forward(self, modalities, use_extracted_feats):
+
+        X = {}
+        X['clip_feats'] = modalities['clip_feats']
+        X['vggish'] = modalities['vggish']
+        # X['clip_feats'] = modalities['clip_feats']
+        x = {}
+
+        # if 'clip_feats' in X:
+        #     X['clip_feats'] = X['clip_feats']
+        #     # batch_size, length, feature_dim = X['clip_feats'].shape
+
+        # if 'context' in X:
+        #     X['context'] = X['context']
+        #     # batch_size, length, feature_dim = X['context'].shape
+
+        for modal in X:
+            x[modal] = X[modal].squeeze(1).transpose(1, 2)
+            x[modal] = self.temporal[modal](x[modal].float())
+            x[modal] = self.bn[modal](x[modal])
+
+        c = self.fuse(x)
+        c = self.fc1(c).transpose(1, 2)
+        c = self.bn1(c).transpose(1, 2)
+        c = F.leaky_relu(c)
+        c = self.fc2(c)
+        c = torch.tanh(c)
+
+        # visualise = c.detach().cpu().numpy()
+        # for i, batch in enumerate(visualise):
+        #     for k, length in enumerate(batch):
+        #         two = np.where(length > 0.4)[0]
+        #         if len(two) > 1:
+        #             max_indice = np.argmax(modalities['stimuli_weights'][i,k,:][two].detach().cpu().numpy())
+        #             c[i,k,two[max_indice]] = 1
+        return c , None
