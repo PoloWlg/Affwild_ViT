@@ -109,6 +109,8 @@ class GenericExperiment(GenericImageExperiment):
 
         if 'emotion' in args:
             self.emotion = args.emotion
+            
+        self.proposed = args.proposed
 
     def prepare(self):
 

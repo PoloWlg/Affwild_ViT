@@ -14,6 +14,8 @@ import torch
 import os
 import wandb
 
+import numpy as np
+
 
 def check_bool(argument):
     if type(argument) == bool:
@@ -57,6 +59,8 @@ class Experiment(GenericExperiment):
         self.save_tsne_pcc_inter_connexions = args.save_tsne_pcc_inter_connexions
         self.unfreeze_all_clip = args.unfreeze_all_clip
         
+        self.proposed = args.proposed
+        
 
     
     def prepare(self):
@@ -82,11 +86,7 @@ class Experiment(GenericExperiment):
 
     def run(self):
 
-        # criterion = CCCLoss()
-        criterion = torch.nn.CrossEntropyLoss()
-        if self.weighted_ce_loss:
-            class_weights = 1 / torch.tensor([179503, 17153, 10978, 9110, 94344, 81054, 30639, 171407]).to(self.device)
-            criterion = torch.nn.CrossEntropyLoss(weight=class_weights, label_smoothing=0.1)
+        
 
         for fold in iter(self.folds_to_run):
             import gc
@@ -107,7 +107,7 @@ class Experiment(GenericExperiment):
                 })
 
             save_path = os.path.join(self.save_path,
-                                     self.experiment_name + "_" + self.model_name + "_" + self.stamp + "_fold" + str(
+                                     self.experiment_name + "_" + self.model_name + "_" + 'proposed_' + str(self.proposed) + "_fold" + str(
                                          fold) + "_" + self.emotion +  "_seed" + str(self.seed))
             self.save_path = save_path
             self.args.save_path = save_path
@@ -123,7 +123,32 @@ class Experiment(GenericExperiment):
             model = self.init_model()
 
             dataloaders = self.init_dataloader(fold)
-
+            
+            total_count_val = np.zeros(8)
+            for keys in dataloaders['validate'].dataset.continuous_label.keys():
+                label_video =  dataloaders['validate'].dataset.continuous_label[keys]
+                count = np.bincount(label_video.squeeze(1))
+                count = np.pad(count, (0, 8 - len(count)), 'constant', constant_values=0)
+                total_count_val += count
+            print("Validation set class distribution:", total_count_val)
+            
+            total_count_train = np.zeros(8)
+            for keys in dataloaders['train'].dataset.continuous_label.keys():
+                label_video =  dataloaders['train'].dataset.continuous_label[keys]
+                count = np.bincount(label_video.squeeze(1))
+                count = np.pad(count, (0, 8 - len(count)), 'constant', constant_values=0)
+                total_count_train += count
+            print("Training set class distribution:", total_count_train)
+            # total_count = np.array([179503, 17153, 10978, 9110, 94344, 81054, 30639, 171407])
+            # criterion = CCCLoss()
+            criterion = torch.nn.CrossEntropyLoss()
+            if self.weighted_ce_loss:
+                N = total_count_train.sum()
+                K = len(total_count_train)
+                weights = N / (K * total_count_train)
+                weights = torch.tensor(weights).float().to(self.device)
+                criterion = torch.nn.CrossEntropyLoss(weight=weights, label_smoothing=0.1)
+            
             trainer_kwards = {'device': self.device, 'emotion': self.emotion, 'model_name': self.model_name,
                               'models': model, 'save_path': save_path, 'fold': fold,
                               'min_epoch': self.min_num_epochs, 'max_epoch': self.num_epochs,
@@ -133,7 +158,7 @@ class Experiment(GenericExperiment):
                               'criterion': criterion, 'factor': self.factor, 'verbose': True,
                               'milestone': self.milestone, 'metrics': self.config['metrics'],
                               'load_best_at_each_epoch': self.load_best_at_each_epoch,
-                              'save_plot': self.config['save_plot'], 'load_weights': self.load_weights, 'load_weights_res50': self.load_weights_res50, 'save_feature_maps': self.save_feature_maps,}
+                              'save_plot': self.config['save_plot'], 'load_weights': self.load_weights, 'load_weights_res50': self.load_weights_res50, 'save_feature_maps': self.save_feature_maps, 'proposed': self.proposed}
 
             trainer = Trainer(**trainer_kwards)
 
@@ -171,7 +196,9 @@ class Experiment(GenericExperiment):
                             checkpoint_controller=checkpoint_controller)
 
             test_kwargs = {'dataloader_dict': dataloaders, 'epoch': None, 'partition': 'validate'}
-            trainer.test(checkpoint_controller, predict_only=1, **test_kwargs)
+            
+            if False:
+                trainer.test(checkpoint_controller, predict_only=1, **test_kwargs)
 
     def init_dataset(self, data, continuous_label_dim, mode, fold):
         dataset = Dataset(data, self.args.context_path, continuous_label_dim, self.modality, self.multiplier,

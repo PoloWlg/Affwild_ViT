@@ -342,6 +342,44 @@ class Proposed(nn.Module):
                 x_video = self.mlp2(clip_feats)
                 return x_video, clip_feats
             
+class Context_only(nn.Module):
+    def __init__(self, device):
+        super().__init__()
+        self.device = device
+        tcn_settings = {
+            'context': {
+                'input_dim': 4096,
+                'channel': [4096, 512, 128],
+                'kernel_size': 5 
+            },
+            }
+        
+        modalities = ['context']
+        self.temporal = TemporalConvNet(num_inputs=tcn_settings['context']['input_dim'],
+                                                   num_channels=tcn_settings['context']['channel'],
+                                                   kernel_size=tcn_settings['context']['kernel_size'])
+        self.bn = BatchNorm1d(tcn_settings['context']['channel'][-1] )
+        
+        feas_modalities = [tcn_settings[modal]['channel'][-1] for modal in modalities]
+        self.fuse = AttentionFusion(num_feats_modality=feas_modalities, num_out_feats=128)
+        
+        self.bn1 = BatchNorm1d(128 * len(modalities))
+        self.fc1 = Linear(128* len(modalities), 128* len(modalities))
+        self.fc2 = Linear(128* len(modalities), 8)
+        
+    def forward(self, context_feats):
+        x = context_feats.squeeze(1).transpose(1, 2)
+        x = self.temporal(x.float())
+        x = self.bn(x)
+        
+        c = self.fuse({'context': x})
+        c = self.fc1(c).transpose(1, 2)
+        c = self.bn1(c).transpose(1, 2)
+        c = F.leaky_relu(c)
+        c = self.fc2(c)
+        c = torch.tanh(c)
+        
+        return c
 class CAN(nn.Module):
     def __init__(self, device):
         super().__init__()
@@ -390,25 +428,16 @@ class CAN(nn.Module):
         self.fc1 = Linear(128* len(modalities), 128* len(modalities))
         self.fc2 = Linear(128* len(modalities), 8)
 
-
+        self.context_only = Context_only(device=device)
     
 
 
-    def forward(self, modalities, use_extracted_feats):
+    def forward(self, modalities, use_extracted_feats, train_mode, proposed):
 
         X = {}
         X['clip_feats'] = modalities['clip_feats']
         X['vggish'] = modalities['vggish']
-        # X['clip_feats'] = modalities['clip_feats']
         x = {}
-
-        # if 'clip_feats' in X:
-        #     X['clip_feats'] = X['clip_feats']
-        #     # batch_size, length, feature_dim = X['clip_feats'].shape
-
-        # if 'context' in X:
-        #     X['context'] = X['context']
-        #     # batch_size, length, feature_dim = X['context'].shape
 
         for modal in X:
             x[modal] = X[modal].squeeze(1).transpose(1, 2)
@@ -422,11 +451,27 @@ class CAN(nn.Module):
         c = self.fc2(c)
         c = torch.tanh(c)
 
-        # visualise = c.detach().cpu().numpy()
-        # for i, batch in enumerate(visualise):
-        #     for k, length in enumerate(batch):
-        #         two = np.where(length > 0.4)[0]
-        #         if len(two) > 1:
-        #             max_indice = np.argmax(modalities['stimuli_weights'][i,k,:][two].detach().cpu().numpy())
-        #             c[i,k,two[max_indice]] = 1
+        # if train_mode == False and proposed:
+            # TEST ONE 
+        # if train_mode == False and proposed:
+        #     visualise = c.detach().cpu().numpy()
+        #     for i, batch in enumerate(visualise):
+        #         for k, length in enumerate(batch):
+        #             two = np.where(length > 0.6)[0]
+        #             if len(two) > 1:
+        #                 max_indice = np.argmax(modalities['stimuli_weights'][i,k,:][two].detach().cpu().numpy())
+        #                 c[i,k,two[max_indice]] = 1
+            
+            
+            # TEST TWO
+            # contextual = self.context_only(modalities['context']) 
+            # visualise = c.detach().cpu().numpy()
+            # for i, batch in enumerate(visualise):
+            #     for k, length in enumerate(batch):
+            #         two = np.where(length > 0.4)[0]
+            #         if len(two) > 1:
+            #             #max_indice = np.argmax(contextual[i,k,:][two].detach().cpu().numpy())
+            #             max_indice = np.random.randint(0, len(two))
+            #             c[i,k,two[max_indice]] = 1 
+        
         return c , None

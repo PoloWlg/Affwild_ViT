@@ -22,7 +22,7 @@ if __name__ == '__main__':
 
     # 1. Experiment Setting
     # 1.1. Server
-    parser.add_argument('-gpu', default=1, type=int, help='Which gpu to use?')
+    parser.add_argument('-gpu', default=0, type=int, help='Which gpu to use?')
     parser.add_argument('-cpu', default=5, type=int, help='How many threads are allowed?')
     parser.add_argument('-high_performance_cluster', default=1, type=int, help='On high-performance server or not?'
                                                                                'If set to 1, then the gpu and cpu settings will be ignored.'
@@ -57,9 +57,14 @@ if __name__ == '__main__':
     
     # Load Weights or not ?
     #parser.add_argument('-load_weights', default='/home/ens/AS84330/Stimuli/Affwild/ABAW3_EXPR4/weights_saved/test_Proposed__fold0_valence_seed4/model_state_dict0.3981.pth',type=str, help='Path of the weights to load')
-    #parser.add_argument('-load_weights', default='/home/ens/AS84330/Stimuli/Affwild/ABAW3_EXPR4/weights_saved/test_CAN__fold0_valence_seed4/model_state_dict0.4142.pth',type=str, help='Path of the weights to load')
     # parser.add_argument('-load_weights', default='/home/ens/AS84330/Stimuli/Affwild/ABAW3_EXPR4/weights_saved/test_CAN__fold0_valence_seed4/model_state_dict0.4142.pth',type=str, help='Path of the weights to load')
+    # parser.add_argument('-load_weights', default='/home/ens/AS84330/Stimuli/Affwild/ABAW3_EXPR4/weights_saved/test_CAN__fold0_valence_seed4/model_state_dict0.4521.pth',type=str, help='Path of the weights to load')
+    #parser.add_argument('-load_weights', default='/home/ens/AS84330/Stimuli/Affwild/ABAW3_EXPR4/weights_saved/test_CAN__fold0_valence_seed4/model_state_dict0.2414.pth',type=str, help='Path of the weights to load')
+    # parser.add_argument('-load_weights', default='/home/ens/AS84330/Stimuli/Affwild/ABAW3_EXPR4/weights_saved/test_CAN_proposed_0_fold0_valence_seed4/model_state_dict0.42.pth',type=str, help='Path of the weights to load')
+    # parser.add_argument('-load_weights', default='/home/ens/AS84330/Stimuli/Affwild/ABAW3_EXPR4/weights_saved/test_CAN_proposed_0_fold0_valence_seed4/model_state_dict0.4211.pth',type=str, help='Path of the weights to load')
+    # parser.add_argument('-load_weights', default='/home/ens/AS84330/Stimuli/Affwild/ABAW3_EXPR4/weights_saved/test_CAN_proposed_0_fold0_valence_seed3/test_CAN_proposed_0_fold1_valence_seed3/test_CAN_proposed_0_fold2_valence_seed3/test_CAN_proposed_0_fold3_valence_seed3/model_state_dict0.3946.pth',type=str, help='Path of the weights to load')
     parser.add_argument('-load_weights', default='',type=str, help='Path of the weights to load')
+    
     
     parser.add_argument('-load_weights_res50', default='', type=str, help='Path of the weights to load')
 
@@ -111,7 +116,7 @@ if __name__ == '__main__':
     parser.add_argument('-folds_to_run', default=[0], nargs="+", type=int, help='Which fold(s) to run? Each fold may take 1-2 days.')
 
     # 2.2. Epochs and data
-    parser.add_argument('-num_epochs', default=20, type=int, help='The total of epochs to run during training.')
+    parser.add_argument('-num_epochs', default=10, type=int, help='The total of epochs to run during training.')
     parser.add_argument('-min_num_epochs', default=1, type=int, help='The minimum epoch to run at least.')
     parser.add_argument('-early_stopping', default=50, type=int,
                         help='If no improvement, the number of epoch to run before halting the training')
@@ -152,6 +157,10 @@ if __name__ == '__main__':
     
     parser.add_argument('-unfreeze_all_clip', default=0, type=int,
                     help='')
+    
+    parser.add_argument('-proposed', default=1, type=int,
+                    help='')
+    
     args = parser.parse_args()
     
 

@@ -41,6 +41,13 @@ class GenericDataArranger(object):
         # video_files_val = os.listdir(path_val_annotations)
             
         train_validate_range = self.partition_range['train'] + self.partition_range['validate']
+        
+        if fold != 0:
+            train_validate_range = np.concatenate(train_validate_range)
+            rng = np.random.default_rng(seed=42)
+            rng.shuffle(train_validate_range)
+            train_validate_range = np.array_split(train_validate_range, 5)
+        
         assert  len(train_validate_range) == self.fold_to_partition['train'] + self.fold_to_partition['validate']
         train_validate_range = np.asarray(train_validate_range, dtype="object")
         partition_range = list(np.roll(train_validate_range, fold))
@@ -543,8 +550,7 @@ class StimuliSimilarity(object):
         all_weights = os.listdir(root_path)
         
         # path_saved_weights = '/home/ens/AS84330/Stimuli/Affwild/ABAW3_EXPR4/Stimuli_preprocessing/stimuli_weights.pkl'
-        # path_saved_weights = '/home/ens/AS84330/Stimuli/Affwild/ABAW3_EXPR4/Stimuli_preprocessing/stimuli_weights_normal_emotions.pkl'
-        path_saved_weights = '/home/ens/AS84330/Stimuli/Affwild/ABAW3_EXPR4/Stimuli_preprocessing/stimuli_weights.pkl'
+        path_saved_weights = '/home/ens/AS84330/Stimuli/Affwild/ABAW3_EXPR4/Stimuli_preprocessing/stimuli_weights_normal_emotions.pkl'
         
         
         if os.path.exists(path_saved_weights):

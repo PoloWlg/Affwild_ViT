@@ -47,6 +47,7 @@ class GenericTrainer(object):
         self.load_weights_res50 = kwargs['load_weights_res50']
         self.save_feature_maps = kwargs['save_feature_maps']
 
+        self.proposed = kwargs['proposed']
         self.optimizer, self.scheduler = None, None
 
     def train(self, **kwargs):
@@ -287,7 +288,7 @@ class GenericVideoTrainer(GenericTrainer):
             # labels = labels.permute(0,2,1).squeeze(1).to(torch.long)
 
             with torch.amp.autocast(device_type = 'cuda' ,dtype=torch.float16):
-                outputs, vit_feats = self.model(inputs, use_extracted_feats)
+                outputs, vit_feats = self.model(inputs, use_extracted_feats, train_mode, self.proposed)
                 # outputs = torch.rand(batch_size, length, 8).to(self.device)
                 outputs = outputs.view(batch_size, length, 8).permute(0,2,1)
                 labels = labels.permute(0,2,1).squeeze(1).to(torch.long)

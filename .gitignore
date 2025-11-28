@@ -17,3 +17,5 @@ path.json
 features
 wandb
 prototypes
+Stimuli_preprocessing/video_stimuli
+Stimuli_preprocessing/video_visualisation
