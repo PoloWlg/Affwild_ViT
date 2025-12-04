@@ -259,7 +259,7 @@ class GenericVideoTrainer(GenericTrainer):
         metric_handler = ContinuousMetricsCalculator(self.metrics, self.emotion,
                                                      output_handler, continuous_label_handler)
 
-        num_batch_warm_up = len(dataloader) * self.min_epoch
+        num_batch_warm_up = len(dataloader)* self.min_epoch
         
         use_extracted_feats = True
         extract_feats  = False

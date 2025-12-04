@@ -136,6 +136,8 @@ class GenericExperiment(GenericImageExperiment):
     def run(self):
         raise NotImplementedError
 
+    
+    
     def init_dataloader(self, fold):
         self.init_randomness()
         data_list = self.data_arranger.generate_partitioned_trial_list(window_length=self.window_length,
@@ -153,9 +155,12 @@ class GenericExperiment(GenericImageExperiment):
                 
                 # print(f'--- {mode} ---')
                 # datasets[mode].partition_per_class_distribution()
+                shuffle = True if mode == "train" else False
                 
+                generator = torch.Generator()
+                generator.manual_seed(self.seed)
                 dataloaders[mode] = torch.utils.data.DataLoader(
-                    dataset=datasets[mode], batch_size=self.batch_size, shuffle=False)
+                    dataset=datasets[mode], batch_size=self.batch_size, shuffle=shuffle, generator=generator)
 
         return dataloaders
 

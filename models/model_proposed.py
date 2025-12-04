@@ -347,7 +347,7 @@ class CAN(nn.Module):
         super().__init__()
         self.device = device
         
-        modalities = ['clip_feats','vggish']
+        modalities = ['clip_feats']
         tcn_settings = {
             'clip_feats': {
                 'input_dim': 768,
@@ -398,7 +398,7 @@ class CAN(nn.Module):
 
         X = {}
         X['clip_feats'] = modalities['clip_feats']
-        X['vggish'] = modalities['vggish']
+        # X['vggish'] = modalities['vggish']
         # X['clip_feats'] = modalities['clip_feats']
         x = {}
 
@@ -413,7 +413,7 @@ class CAN(nn.Module):
         for modal in X:
             x[modal] = X[modal].squeeze(1).transpose(1, 2)
             x[modal] = self.temporal[modal](x[modal].float())
-            x[modal] = self.bn[modal](x[modal])
+            x[modal] = self.bn[modal](x[modal]) 
 
         c = self.fuse(x)
         c = self.fc1(c).transpose(1, 2)

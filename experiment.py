@@ -105,7 +105,7 @@ class Experiment(GenericExperiment):
 
             save_path = os.path.join(self.save_path,
                                      self.experiment_name + "_" + self.model_name + "_" + self.stamp + "_fold" + str(
-                                         fold) + "_" + self.emotion +  "_seed" + str(self.seed))
+                                         fold) + "_" + self.emotion +  "_learning_rate" + str(self.learning_rate)+  "_batch_size" + str(self.batch_size)+  "_seed" + str(self.seed))
             self.save_path = save_path
             self.args.save_path = save_path
             
@@ -192,9 +192,10 @@ class Experiment(GenericExperiment):
         
         N = total_count_train.sum()
         K = len(total_count_train)
-        weights = N / (K * total_count_train)
-        weights = torch.tensor(weights).float().to(self.device)
-        criterion = torch.nn.CrossEntropyLoss(weight=weights, label_smoothing=0.1)
+        weights = int(N) / (int(K) * torch.tensor(total_count_train.astype(int).tolist()).to(self.device))
+        # weights = torch.tensor(weights).to(self.device)
+        class_weights = 1 / torch.tensor([179503, 17153, 10978, 9110, 94344, 81054, 30639, 171407]).to(self.device)
+        criterion = torch.nn.CrossEntropyLoss(weight = weights, label_smoothing=0.1)
         
         return criterion
     
