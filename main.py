@@ -16,7 +16,7 @@ if __name__ == '__main__':
 
     # 1. Experiment Setting
     # 1.1. Server
-    parser.add_argument('-gpu', default=3, type=int, help='Which gpu to use?')
+    parser.add_argument('-gpu', default=1, type=int, help='Which gpu to use?')
     parser.add_argument('-cpu', default=5, type=int, help='How many threads are allowed?')
     parser.add_argument('-high_performance_cluster', default=1, type=int, help='On high-performance server or not?'
                                                                                'If set to 1, then the gpu and cpu settings will be ignored.'
@@ -96,7 +96,7 @@ if __name__ == '__main__':
 
     # 2.2. Epochs and data
     parser.add_argument('-num_epochs', default=40, type=int, help='The total of epochs to run during training.')
-    parser.add_argument('-min_num_epochs', default=20, type=int, help='The minimum epoch to run at least.')
+    parser.add_argument('-min_num_epochs', default=5, type=int, help='The minimum epoch to run at least.')
     parser.add_argument('-early_stopping', default=50, type=int,
                         help='If no improvement, the number of epoch to run before halting the training')
     parser.add_argument('-window_length', default=300, type=int, help='The length in point number to windowing the data.')
@@ -104,7 +104,7 @@ if __name__ == '__main__':
     parser.add_argument('-batch_size', default=4, type=int)
 
     # 2.1. Scheduler and Parameter Control
-    parser.add_argument('-seed', default=13, type=int)
+    parser.add_argument('-seed', default=17, type=int)
     parser.add_argument('-scheduler', default='plateau', type=str, help='plateau, cosine')
     parser.add_argument('-learning_rate', default=1e-5, type=float, help='The initial learning rate.')
     parser.add_argument('-fixed_lr', default=True, type=bool, help='Whether or not to fix the learning rate ')

@@ -114,7 +114,7 @@ class MyWarmupScheduler(object):
     def warmup_lr(self, init_lr, batch,  num_batch_warm_up):
         if self.relative_epoch < self.num_warmup_epoch:
             for params in self.optimizer.param_groups:
-                params['lr'] = batch * init_lr * (self.relative_epoch + 1) / (num_batch_warm_up * self.num_warmup_epoch + 1e-100)
+                params['lr'] = 0.1 * batch * init_lr * (self.relative_epoch + 1) / (num_batch_warm_up)
 
 
     def _reduce_lr(self, epoch):

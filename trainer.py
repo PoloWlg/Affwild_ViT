@@ -160,6 +160,8 @@ class Trainer(GenericVideoTrainer):
 
             checkpoint_controller.save_log_to_csv(
                 epoch, train_record_dict['overall'], validate_record_dict['overall'])
+            
+            self.scheduler.step(metrics=validate_ccc, epoch=epoch)
 
             if self.load_best_at_each_epoch:
                 self.model.load_state_dict(self.best_epoch_info['model_weights'])
