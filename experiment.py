@@ -1,6 +1,5 @@
 from base.experiment import GenericExperiment
 from base.utils import load_pickle
-from base.loss_function import CCCLoss
 from trainer import Trainer
 
 from dataset import DataArranger, Dataset
@@ -8,13 +7,14 @@ from base.checkpointer import Checkpointer
 from models.model import LFAN
 from models.model_proposed import  Video_only, Proposed, CAN
 
-from base.parameter_control import ResnetParamControl
+from base.parameter_control import ParamControl
 
 import torch
 import os
 import wandb
 
 import numpy as np 
+import gc
 
 
 def check_bool(argument):
@@ -32,32 +32,8 @@ class Experiment(GenericExperiment):
     def __init__(self, args):
         super().__init__(args)
         self.args = args
-        self.release_count = args.release_count
-        self.gradual_release = args.gradual_release
-        self.milestone = args.milestone
-        self.backbone_mode = "ir"
-        self.min_num_epochs = args.min_num_epochs
-        self.num_epochs = args.num_epochs
-        self.early_stopping = args.early_stopping
-        self.load_best_at_each_epoch = args.load_best_at_each_epoch
-        self.fixed_lr = args.fixed_lr
-        self.load_weights = args.load_weights
-        self.load_weights_res50 = args.load_weights_res50
-        
-        self.num_heads = args.num_heads
-        self.modal_dim = args.modal_dim
-        self.tcn_kernel_size = args.tcn_kernel_size
-        
-        self.semantic_context_path = args.semantic_context_path
-        self.frozen_resnet50 = args.frozen_resnet50
-        self.compute_att_maps = args.compute_att_maps
-        self.weighted_ce_loss = args.weighted_ce_loss
-        
-        self.context_feature_model = args.context_feature_model
-        
-        self.save_feature_maps = args.save_feature_maps
-        self.save_tsne_pcc_inter_connexions = args.save_tsne_pcc_inter_connexions
-        self.unfreeze_all_clip = args.unfreeze_all_clip
+        for name, value in vars(args).items():
+            setattr(self, name, value)
         
 
     
@@ -82,38 +58,36 @@ class Experiment(GenericExperiment):
         arranger = DataArranger(self.dataset_info, self.dataset_path, self.debug)
         return arranger
 
+    def init_wandb(self):
+        wandb.init(
+            project=f"My fine tuning final experiments", 
+            name=f"lr_{self.args.learning_rate}-bs_{self.args.batch_size}",
+            config={
+                "gpu": self.args.gpu,
+                "epochs": self.args.num_epochs,
+                "batch_size": self.args.batch_size,
+                "learning_rate": self.args.learning_rate
+        })
+    
     def run(self):
 
 
         for fold in iter(self.folds_to_run):
-            import gc
-
+            
             # Clear unused GPU memory
             torch.cuda.empty_cache()
             gc.collect()
             torch.cuda.ipc_collect()
             
-            wandb.init(
-                project=f"My fine tuning final experiments", 
-                name=f"lr_{self.args.learning_rate}-bs_{self.args.batch_size}",
-                config={
-                    "gpu": self.args.gpu,
-                    "epochs": self.args.num_epochs,
-                    "batch_size": self.args.batch_size,
-                    "learning_rate": self.args.learning_rate
-                })
+            self.init_wandb()
+            
 
             save_path = os.path.join(self.save_path,
                                      self.experiment_name + "_" + self.model_name + "_" + self.stamp + "_fold" + str(
                                          fold) + "_" + self.emotion +  "_learning_rate" + str(self.learning_rate)+  "_batch_size" + str(self.batch_size)+  "_seed" + str(self.seed))
             self.save_path = save_path
             self.args.save_path = save_path
-            
-            if not self.resume:
-                if self.experiment_name == 'test':
-                    os.makedirs(save_path, exist_ok=True)
-                else:
-                    os.makedirs(save_path, exist_ok=False)
+            os.makedirs(save_path, exist_ok=True)
             
             checkpoint_filename = os.path.join(save_path, "checkpoint.pkl")
 
@@ -136,41 +110,22 @@ class Experiment(GenericExperiment):
 
             trainer = Trainer(**trainer_kwards)
 
-            parameter_controller = ResnetParamControl(trainer, gradual_release=self.gradual_release,
+            parameter_controller = ParamControl(trainer, gradual_release=self.gradual_release,
                                                       release_count=self.release_count,
                                                       backbone_mode=["visual", "audio"])
 
             checkpoint_controller = Checkpointer(checkpoint_filename, trainer, parameter_controller, resume=self.resume)
 
-            if self.resume:
-                trainer, parameter_controller = checkpoint_controller.load_checkpoint()
-                trainer.model.to(self.device)
-                trainer.device = torch.device('cuda')
-                trainer.optimizer = torch.optim.Adam(trainer.get_parameters(), lr=trainer.learning_rate, weight_decay=0.001)
-                
-                # for param_group in trainer.optimizer.param_groups:
-                #     for param in param_group['params']:
-                #         print(param.device)
-            else:
-                # if self.load_weights:
-                    # checkpoint_filename = self.load_weights
-                    # checkpoint_controller = Checkpointer(checkpoint_filename, trainer, parameter_controller, resume=self.resume)
-                    # trainer, _ = checkpoint_controller.load_checkpoint()
-                    # trainer.save_path = save_path
-                    # trainer.fit_finished = False
-                    # trainer.start_epoch = 0
-                    # trainer.model.to(self.device)
-                    # trainer.device = torch.device('cuda')
-                    # trainer.optimizer = torch.optim.Adam(trainer.get_parameters(), lr=trainer.learning_rate, weight_decay=0.001)
-                checkpoint_controller.init_csv_logger(self.args, self.config)
-                checkpoint_controller.save_config_to_json(self.args)
+            
+            checkpoint_controller.init_csv_logger(self.args, self.config)
+            checkpoint_controller.save_config_to_json(self.args)
 
-            if not trainer.fit_finished or trainer.resume:
+            if not trainer.fit_finished:
                 trainer.fit(dataloaders, parameter_controller=parameter_controller,
                             checkpoint_controller=checkpoint_controller)
 
-            test_kwargs = {'dataloader_dict': dataloaders, 'epoch': None, 'partition': 'validate'}
-            trainer.test(checkpoint_controller, predict_only=1, **test_kwargs)
+            #test_kwargs = {'dataloader_dict': dataloaders, 'epoch': None, 'partition': 'validate'}
+            #trainer.test(checkpoint_controller, predict_only=1, **test_kwargs)
 
     
     def init_criterion(self, dataloaders):
@@ -207,25 +162,9 @@ class Experiment(GenericExperiment):
 
     def init_model(self):
         self.init_randomness()
-        modality = [modal for modal in self.modality if "continuous_label" not in modal]
-
-        if self.model_name == "LFAN":
-            model = LFAN(backbone_settings=self.config['backbone_settings'],
-                                                   modality=modality, example_length=self.window_length,
-                                                   kernel_size=self.tcn_kernel_size,
-                                                   tcn_channel=self.config['tcn']['channels'], modal_dim=self.modal_dim, num_heads=self.num_heads,
-                                                   root_dir=self.load_path, device=self.device)
-            model.init()
-        elif self.model_name == "CAN":
+        if self.model_name == "CAN":
             model = CAN(device=self.device)
-        elif self.model_name == "CAN2":
-            model = CAN2(root_dir=self.load_path, fusion_method=self.args.fusion_method , modalities=modality, tcn_settings=self.config['tcn_settings'], backbone_settings=self.config['backbone_settings'], output_dim=len(self.continuous_label_dim), device=self.device, semantic_context_path=self.semantic_context_path, compute_att_maps=self.compute_att_maps, frozen_resnet50 = self.frozen_resnet50, args = self.args)
-        elif self.model_name == "Video_only":    
-            model = Video_only(root_dir=self.load_path, device=self.device, backbone_settings=self.config['backbone_settings'], frozen_resnet50=self.frozen_resnet50)
-        elif self.model_name == "Proposed":    
-            model = Proposed(root_dir=self.load_path, device=self.device, backbone_settings=self.config['backbone_settings'], frozen_resnet50=self.frozen_resnet50, args=self.args)
-        
-    
+            
         return model
 
     def get_modality(self):

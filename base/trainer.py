@@ -284,20 +284,13 @@ class GenericVideoTrainer(GenericTrainer):
                 inputs[feature] = Extracted_Features[feature].to(self.device)
 
             labels = inputs.pop("EXPR_continuous_label", None)
-            # labels = labels.permute(0,2,1).squeeze(1).to(torch.long)
 
             with torch.amp.autocast(device_type = 'cuda' ,dtype=torch.float16):
                 outputs, vit_feats = self.model(inputs, use_extracted_feats)
-                # outputs = torch.rand(batch_size, length, 8).to(self.device)
                 outputs = outputs.view(batch_size, length, 8).permute(0,2,1)
                 labels = labels.permute(0,2,1).squeeze(1).to(torch.long)
-                one_hot = outputs.permute(0,2,1)
-                
                 loss = self.criterion(outputs, labels)
             
-            outputs = outputs.permute(0,2,1)
-            labels = labels.unsqueeze(1).permute(0,2,1)
-
             running_loss += loss.mean().item()
 
             if train_mode:
@@ -312,15 +305,15 @@ class GenericVideoTrainer(GenericTrainer):
                 scaler.step(self.optimizer)
                 scaler.update()
             
+            labels = labels.unsqueeze(1).permute(0,2,1)
+            one_hot = outputs.permute(0,2,1)
             if extract_feats:
+                
                 vit_feats = vit_feats.view(batch_size, length, -1)
                 features_handler.update_output_for_seen_trials(vit_feats.detach().cpu().numpy(), trials, indices, lengths)
             output_handler.update_output_for_seen_trials(one_hot.detach().cpu().numpy(), trials, indices, lengths)
             continuous_label_handler.update_output_for_seen_trials(labels.detach().cpu().numpy(), trials, indices, lengths)
         
-
-        # if extract_feats:
-        #     features_handler.save_features()
             
         epoch_loss = running_loss / total_batch_counter
         
@@ -331,9 +324,6 @@ class GenericVideoTrainer(GenericTrainer):
 
         output_handler.concat_records()
         continuous_label_handler.concat_records()
-
-        
-        
 
         metric_handler.calculate_metrics()
         epoch_result_dict = metric_handler.metric_record_dict

@@ -1,15 +1,9 @@
-import sys
 import argparse
-import torch
 from torch import cuda
 import json
 import os
-import wandb
 
-# Set the number of threads for OpenMP (used by libraries like NumPy, SciPy)
 os.environ["OMP_NUM_THREADS"] = "90"
-
-# Set the number of threads for MKL (used by NumPy, etc.)
 os.environ["MKL_NUM_THREADS"] = "90"
 
 if __name__ == '__main__':
@@ -22,7 +16,7 @@ if __name__ == '__main__':
 
     # 1. Experiment Setting
     # 1.1. Server
-    parser.add_argument('-gpu', default=2, type=int, help='Which gpu to use?')
+    parser.add_argument('-gpu', default=3, type=int, help='Which gpu to use?')
     parser.add_argument('-cpu', default=5, type=int, help='How many threads are allowed?')
     parser.add_argument('-high_performance_cluster', default=1, type=int, help='On high-performance server or not?'
                                                                                'If set to 1, then the gpu and cpu settings will be ignored.'
@@ -56,9 +50,6 @@ if __name__ == '__main__':
     parser.add_argument('-resume', default=0, type=int, help='Resume from checkpoint?')
     
     # Load Weights or not ?
-    #parser.add_argument('-load_weights', default='/home/ens/AS84330/Stimuli/Affwild/ABAW3_EXPR4/weights_saved/test_Proposed__fold0_valence_seed4/model_state_dict0.3981.pth',type=str, help='Path of the weights to load')
-    #parser.add_argument('-load_weights', default='/home/ens/AS84330/Stimuli/Affwild/ABAW3_EXPR4/weights_saved/test_CAN__fold0_valence_seed4/model_state_dict0.4142.pth',type=str, help='Path of the weights to load')
-    # parser.add_argument('-load_weights', default='/home/ens/AS84330/Stimuli/Affwild/ABAW3_EXPR4/weights_saved/test_CAN__fold0_valence_seed4/model_state_dict0.4142.pth',type=str, help='Path of the weights to load')
     parser.add_argument('-load_weights', default='',type=str, help='Path of the weights to load')
     
     parser.add_argument('-load_weights_res50', default='', type=str, help='Path of the weights to load')
@@ -67,9 +58,6 @@ if __name__ == '__main__':
     parser.add_argument('-debug', default=0, type=int, help='The number of trials to load for debugging. Set to 0 for non-debugging execution.')
 
     # 1.6. What modality to use?
-    #  Set to ['frame'] for unimodal and ['frame', 'mfcc', 'vggish' for multimodal. Using other features may cause bugs.
-    # parser.add_argument('-modality', default=['video', 'logmel','mfcc', "VA_continuous_label"], nargs="*")
-    # parser.add_argument('-modality', default=['video', 'vggish', "VA_continuous_label"], nargs="*")
     parser.add_argument('-modality', default=["EXPR_continuous_label", "video", "context"], nargs="*")
     
     # Context
@@ -80,10 +68,6 @@ if __name__ == '__main__':
                         help='Calculate the mean and std and save to a pickle file')
 
     # 1.7. What emotion to train?
-    # If choose both, then the multi-headed will be automatically enabled, meaning, the models will predict both the Valence
-    #   and Arousal.
-    # If choose valence or arousal, the output dimension can be 1 for single-headed, or 2 for multi-headed.
-    # For the latter, a weight will be applied to the output to favor the selected emotion.
     parser.add_argument('-emotion', default="valence",
                         help='The emotion dimension to focus when updating gradient: arousal, valence, both, expr')
 
@@ -112,7 +96,7 @@ if __name__ == '__main__':
 
     # 2.2. Epochs and data
     parser.add_argument('-num_epochs', default=40, type=int, help='The total of epochs to run during training.')
-    parser.add_argument('-min_num_epochs', default=1, type=int, help='The minimum epoch to run at least.')
+    parser.add_argument('-min_num_epochs', default=20, type=int, help='The minimum epoch to run at least.')
     parser.add_argument('-early_stopping', default=50, type=int,
                         help='If no improvement, the number of epoch to run before halting the training')
     parser.add_argument('-window_length', default=300, type=int, help='The length in point number to windowing the data.')
@@ -120,7 +104,7 @@ if __name__ == '__main__':
     parser.add_argument('-batch_size', default=4, type=int)
 
     # 2.1. Scheduler and Parameter Control
-    parser.add_argument('-seed', default=9, type=int)
+    parser.add_argument('-seed', default=13, type=int)
     parser.add_argument('-scheduler', default='plateau', type=str, help='plateau, cosine')
     parser.add_argument('-learning_rate', default=1e-5, type=float, help='The initial learning rate.')
     parser.add_argument('-fixed_lr', default=True, type=bool, help='Whether or not to fix the learning rate ')
@@ -139,7 +123,6 @@ if __name__ == '__main__':
                         help='For time_delay=n, it means the n-th label points will be taken as the 1st, and the following ones will be shifted accordingly.'
                              'The rear point will be duplicated to meet the original length.'
                              'This is used to compensate the human labeling delay.')
-    # parser.add_argument('-metrics', default=["rmse", "pcc", "ccc"], nargs="*", help='The evaluation metrics.')
     parser.add_argument('-metrics', default=["ccc"], nargs="*", help='The evaluation metrics.')
     parser.add_argument('-save_plot', default=0, type=int,
                         help='Whether to plot the session-wise output/target or not?')

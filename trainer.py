@@ -35,7 +35,7 @@ class Trainer(GenericVideoTrainer):
         }
 
     def init_optimizer_and_scheduler(self, epoch=0):
-        self.optimizer = optim.AdamW(self.get_parameters(), lr=self.learning_rate, weight_decay=0.1)
+        self.optimizer = optim.AdamW(self.get_parameters(), lr=self.learning_rate, weight_decay=0.01)
 
 
         self.scheduler = MyWarmupScheduler(
@@ -68,36 +68,15 @@ class Trainer(GenericVideoTrainer):
                     break
 
             improvement = False
-            # for name, param in self.model.named_parameters():
-            #     param.requires_grad = False
-            #     if name.startswith('gate'):
-            #         param.requires_grad = True
                 
-            # self.model.gate.requires_grad = True
+            if epoch == 0:
+                parameter_controller.trainer.init_optimizer_and_scheduler(epoch=epoch)
                 
-            # self.model.log_temperature.requires_grad = True
-            # self.model.log_temperature_all_emotions.requires_grad = True
-                
-            if epoch in self.milestone or (parameter_controller.get_current_lr() < self.min_learning_rate and epoch >= self.min_epoch and self.scheduler.relative_epoch > self.min_epoch):
-                parameter_controller.release_param(self.model.spatial, epoch)
-                
-                if not parameter_controller.gradual_release: 
-                    parameter_controller.trainer.init_optimizer_and_scheduler(epoch=epoch)
-                    
-                if parameter_controller.early_stop:
-                    break
-
-                # self.model.load_state_dict(self.best_epoch_info['model_weights'])
 
             if epoch == 0 and self.load_weights: 
                 print('load weights for the model ...')
                 self.model.load_state_dict(torch.load(self.load_weights, map_location=self.device), strict=False)
                 
-            if epoch == 0 and self.load_weights_res50: 
-                print('load weights for the resnet50 model ...')
-                checkpoint = torch.load(self.load_weights_res50, map_location=self.device)
-                filtered_state_dict = {k.replace('spatial.', ''): v for k, v in checkpoint.items() if k.startswith('spatial.')}
-                self.model.spatial.load_state_dict(filtered_state_dict)
             time_epoch_start = time.time()
 
             if self.verbose:
@@ -110,10 +89,6 @@ class Trainer(GenericVideoTrainer):
             validate_kwargs = {"dataloader_dict": dataloader_dict, "epoch": epoch}
             validate_loss, validate_record_dict, features_handler_val, trialwise_output_and_continuous_label_val = self.validate(**validate_kwargs)
 
-            # if epoch % 1 == 0:
-            #     test_kwargs = {"dataloader_dict": dataloader_dict, "epoch": None, "train_mode": 0}
-            #     validate_loss, test_record_dict = self.test(checkpoint_controller=checkpoint_controller, feature_extraction=0, **test_kwargs)
-            #     print(test_record_dict['overall']['ccc'])
             
             # Save validate record dict 
             import pickle
@@ -185,23 +160,6 @@ class Trainer(GenericVideoTrainer):
 
             checkpoint_controller.save_log_to_csv(
                 epoch, train_record_dict['overall'], validate_record_dict['overall'])
-            
-
-            # Early stopping controller.
-            if self.early_stopping and self.scheduler.relative_epoch > self.min_epoch:
-                if improvement:
-                    self.early_stopping_counter = self.early_stopping
-                else:
-                    self.early_stopping_counter -= 1
-
-                if self.early_stopping_counter <= 0:
-                    self.fit_finished = True
-
-
-            self.scheduler.step(metrics=validate_ccc, epoch=epoch)
-
-
-            self.start_epoch = epoch + 1
 
             if self.load_best_at_each_epoch:
                 self.model.load_state_dict(self.best_epoch_info['model_weights'])

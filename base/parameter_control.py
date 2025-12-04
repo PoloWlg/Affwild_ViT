@@ -19,7 +19,7 @@ class GenericParamControl(object):
         raise NotImplementedError
 
 
-class ResnetParamControl(GenericParamControl):
+class ParamControl(GenericParamControl):
     r""""
     It controls what layers to release.
     """
