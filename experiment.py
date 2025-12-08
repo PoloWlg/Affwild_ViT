@@ -7,6 +7,8 @@ from base.checkpointer import Checkpointer
 from models.model import LFAN
 from models.model_proposed import  Video_only, Proposed, CAN
 
+from base.loss_function import FocalLossWithAlpha
+
 from base.parameter_control import ParamControl
 
 import torch
@@ -60,13 +62,15 @@ class Experiment(GenericExperiment):
 
     def init_wandb(self):
         wandb.init(
-            project=f"My fine tuning final experiments", 
-            name=f"lr_{self.args.learning_rate}-bs_{self.args.batch_size}",
+            project=f"Stimuli4", 
+            group= f"lr_{self.args.learning_rate}-bs_{self.args.batch_size}",
+            name=f"seed_{self.args.seed}",
             config={
                 "gpu": self.args.gpu,
                 "epochs": self.args.num_epochs,
                 "batch_size": self.args.batch_size,
-                "learning_rate": self.args.learning_rate
+                "learning_rate": self.args.learning_rate, 
+                "seed": self.args.seed,
         })
     
     def run(self):
@@ -106,7 +110,7 @@ class Experiment(GenericExperiment):
                               'criterion': criterion, 'factor': self.factor, 'verbose': True,
                               'milestone': self.milestone, 'metrics': self.config['metrics'],
                               'load_best_at_each_epoch': self.load_best_at_each_epoch,
-                              'save_plot': self.config['save_plot'], 'load_weights': self.load_weights, 'load_weights_res50': self.load_weights_res50, 'save_feature_maps': self.save_feature_maps,}
+                              'save_plot': self.config['save_plot'], 'load_weights': self.load_weights, 'load_weights_res50': self.load_weights_res50, 'save_feature_maps': self.save_feature_maps,'weight_decay': self.weight_decay,}
 
             trainer = Trainer(**trainer_kwards)
 
@@ -151,6 +155,7 @@ class Experiment(GenericExperiment):
         # weights = torch.tensor(weights).to(self.device)
         class_weights = 1 / torch.tensor([179503, 17153, 10978, 9110, 94344, 81054, 30639, 171407]).to(self.device)
         criterion = torch.nn.CrossEntropyLoss(weight = weights, label_smoothing=0.1)
+        #criterion = FocalLossWithAlpha(alpha=class_weights)
         
         return criterion
     

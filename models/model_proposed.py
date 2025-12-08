@@ -1,4 +1,4 @@
-from models.temporal_convolutional_model import TemporalConvNet
+from models.temporal_convolutional_model import TemporalConvNet, TransEncoder
 from models.backbone import VisualBackbone2
 from sentence_transformers import SentenceTransformer
 from sentence_transformers.util import cos_sim
@@ -368,7 +368,7 @@ class CAN(nn.Module):
 
 
         self.temporal = nn.ModuleDict()
-        self.up_sample = nn.ModuleDict()
+        # self.transformer = nn.ModuleDict()
         self.bn = nn.ModuleDict()
 
         self.spatial = nn.ModuleDict()
@@ -379,6 +379,13 @@ class CAN(nn.Module):
                                                    num_channels=tcn_settings[modal]['channel'],
                                                    kernel_size=tcn_settings[modal]['kernel_size'])
             self.bn[modal] = BatchNorm1d(tcn_settings[modal]['channel'][-1] )
+            # self.transformer[modal] = TransEncoder(
+            #     inc=tcn_settings[modal]['channel'][-1],
+            #     outc=tcn_settings[modal]['channel'][-1],
+            #     dropout=0.3,
+            #     nheads=4,
+            #     nlayer=8,
+            # )
 
 
         feas_modalities = [tcn_settings[modal]['channel'][-1] for modal in modalities]
@@ -399,6 +406,7 @@ class CAN(nn.Module):
         X = {}
         X['clip_feats'] = modalities['clip_feats']
         # X['vggish'] = modalities['vggish']
+        # X['context'] = modalities['context']
         # X['clip_feats'] = modalities['clip_feats']
         x = {}
 
@@ -413,7 +421,8 @@ class CAN(nn.Module):
         for modal in X:
             x[modal] = X[modal].squeeze(1).transpose(1, 2)
             x[modal] = self.temporal[modal](x[modal].float())
-            x[modal] = self.bn[modal](x[modal]) 
+            # x[modal] = self.transformer[modal](x[modal])
+            x[modal] = self.bn[modal](x[modal])
 
         c = self.fuse(x)
         c = self.fc1(c).transpose(1, 2)

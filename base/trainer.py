@@ -117,6 +117,8 @@ class GenericVideoTrainer(GenericTrainer):
         self.validate_losses = []
         self.csv_filename = None
         self.best_epoch_info = None
+        
+        self.weight_decay = kwargs['weight_decay']
 
 
     def fit(self, dataloader_dict, checkpoint_controller, parameter_controller):
