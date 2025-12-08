@@ -5,7 +5,7 @@ from trainer import Trainer
 from dataset import DataArranger, Dataset
 from base.checkpointer import Checkpointer
 from models.model import LFAN
-from models.model_proposed import  Video_only, Proposed, CAN
+from models.model_proposed import  Video_only, Proposed, CAN, Video, Context
 
 from base.loss_function import FocalLossWithAlpha
 
@@ -169,6 +169,12 @@ class Experiment(GenericExperiment):
         self.init_randomness()
         if self.model_name == "CAN":
             model = CAN(device=self.device)
+        
+        if self.model_name == "Video":
+            model = Video(device=self.device)
+            
+        if self.model_name == "Context":
+            model = Context(device=self.device)
             
         return model
 

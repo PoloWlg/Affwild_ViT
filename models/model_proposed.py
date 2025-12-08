@@ -347,7 +347,7 @@ class CAN(nn.Module):
         super().__init__()
         self.device = device
         
-        modalities = ['clip_feats']
+        modalities = ['clip_feats', 'context']
         tcn_settings = {
             'clip_feats': {
                 'input_dim': 768,
@@ -397,7 +397,8 @@ class CAN(nn.Module):
         self.fc1 = Linear(128* len(modalities), 128* len(modalities))
         self.fc2 = Linear(128* len(modalities), 8)
 
-
+        self.fc_context = Linear(4096, 128)
+        self.bn_context = BatchNorm1d(128)  
     
 
 
@@ -405,25 +406,17 @@ class CAN(nn.Module):
 
         X = {}
         X['clip_feats'] = modalities['clip_feats']
-        # X['vggish'] = modalities['vggish']
-        # X['context'] = modalities['context']
-        # X['clip_feats'] = modalities['clip_feats']
+        X['context'] = modalities['context']
         x = {}
 
-        # if 'clip_feats' in X:
-        #     X['clip_feats'] = X['clip_feats']
-        #     # batch_size, length, feature_dim = X['clip_feats'].shape
+        x['clip_feats'] = X['clip_feats'].squeeze(1).transpose(1, 2)
+        x['clip_feats'] = self.temporal['clip_feats'](x['clip_feats'].float())
+        x['clip_feats'] = self.bn['clip_feats'](x['clip_feats'])
 
-        # if 'context' in X:
-        #     X['context'] = X['context']
-        #     # batch_size, length, feature_dim = X['context'].shape
-
-        for modal in X:
-            x[modal] = X[modal].squeeze(1).transpose(1, 2)
-            x[modal] = self.temporal[modal](x[modal].float())
-            # x[modal] = self.transformer[modal](x[modal])
-            x[modal] = self.bn[modal](x[modal])
-
+        x['context'] = X['context'].squeeze(1).transpose(1, 2)
+        x['context'] = self.fc_context(x['context'].transpose(1, 2).float())
+        x['context'] = self.bn_context(x['context'].transpose(1, 2))
+        
         c = self.fuse(x)
         c = self.fc1(c).transpose(1, 2)
         c = self.bn1(c).transpose(1, 2)
@@ -438,4 +431,84 @@ class CAN(nn.Module):
         #         if len(two) > 1:
         #             max_indice = np.argmax(modalities['stimuli_weights'][i,k,:][two].detach().cpu().numpy())
         #             c[i,k,two[max_indice]] = 1
+        
+        
+        return c , None
+    
+    
+    
+    
+
+class Video(nn.Module):
+    def __init__(self, device):
+        super().__init__()
+        self.device = device
+        
+        modalities = ['clip_feats']
+        tcn_settings = {
+            'clip_feats': {
+                'input_dim': 768,
+                'channel': [768, 256, 128],
+                'kernel_size': 5
+            }}
+
+
+        self.temporal = nn.ModuleDict()
+        # self.transformer = nn.ModuleDict()
+        self.bn = nn.ModuleDict()
+        self.layer_norm = nn.ModuleDict()
+
+        self.spatial = nn.ModuleDict()
+
+
+        for modal in modalities:
+            self.temporal[modal] = TemporalConvNet(num_inputs=tcn_settings[modal]['input_dim'],
+                                                   num_channels=tcn_settings[modal]['channel'],
+                                                   kernel_size=tcn_settings[modal]['kernel_size'])
+            self.bn[modal] = BatchNorm1d(tcn_settings[modal]['channel'][-1] )
+            self.layer_norm[modal] = nn.LayerNorm(tcn_settings[modal]['channel'][-1])
+    
+        self.fc = Linear(128, 8)
+    
+
+
+    def forward(self, modalities, use_extracted_feats):
+
+        X = {}
+        X['clip_feats'] = modalities['clip_feats']
+        x = {}
+
+        x['clip_feats'] = X['clip_feats'].squeeze(1).transpose(1, 2)
+        x['clip_feats'] = self.temporal['clip_feats'](x['clip_feats'].float()).transpose(1, 2)
+        x['clip_feats'] = self.layer_norm['clip_feats'](x['clip_feats'])
+        x['clip_feats'] =  F.leaky_relu(x['clip_feats'])
+        
+        c = self.fc(x['clip_feats'])
+        
+        return c , None
+    
+    
+
+class Context(nn.Module):
+    def __init__(self, device):
+        super().__init__()
+        self.device = device
+        self.fc1 = Linear(4096, 128)
+        self.layer_norm = nn.LayerNorm(128)
+        self.fc2 = Linear(128, 8)    
+
+
+    def forward(self, modalities, use_extracted_feats):
+
+        X = {}
+        X['context'] = modalities['context']
+        x = {}
+
+        x['context'] = X['context'].squeeze(1)
+        
+        c = self.fc1(x['context'])
+        c = self.layer_norm(c)
+        c = F.leaky_relu(c)
+        c = self.fc2(c)
+        
         return c , None

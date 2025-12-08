@@ -16,7 +16,7 @@ if __name__ == '__main__':
 
     # 1. Experiment Setting
     # 1.1. Server
-    parser.add_argument('-gpu', default=3, type=int, help='Which gpu to use?')
+    parser.add_argument('-gpu', default=0, type=int, help='Which gpu to use?')
     parser.add_argument('-cpu', default=5, type=int, help='How many threads are allowed?')
     parser.add_argument('-high_performance_cluster', default=1, type=int, help='On high-performance server or not?'
                                                                                'If set to 1, then the gpu and cpu settings will be ignored.'
@@ -81,7 +81,7 @@ if __name__ == '__main__':
                         help='The size of the 1D kernel for temporal convolutional networks.')
 
     # 2.1. Overall settings
-    parser.add_argument('-model_name', default="CAN", help='LFAN, CAN, CAN2, Video_only, Proposed')
+    parser.add_argument('-model_name', default="Video", help='CAN, Video, Context')
     parser.add_argument('-fusion_method', default="Video_only", help='concat, attention, proposed1, proposed2_orthogonal')
     parser.add_argument('-frozen_resnet50',type=int, default=1, help='True for frozen False for unfrozen')
     parser.add_argument('-compute_att_maps',type=int, default=0, help='Computing attention maps')
