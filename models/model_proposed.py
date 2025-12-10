@@ -368,37 +368,26 @@ class CAN(nn.Module):
 
 
         self.temporal = nn.ModuleDict()
-        # self.transformer = nn.ModuleDict()
-        self.bn = nn.ModuleDict()
+        self.layer_norm = nn.ModuleDict()
 
-        self.spatial = nn.ModuleDict()
 
 
         for modal in modalities:
             self.temporal[modal] = TemporalConvNet(num_inputs=tcn_settings[modal]['input_dim'],
                                                    num_channels=tcn_settings[modal]['channel'],
                                                    kernel_size=tcn_settings[modal]['kernel_size'])
-            self.bn[modal] = BatchNorm1d(tcn_settings[modal]['channel'][-1] )
-            # self.transformer[modal] = TransEncoder(
-            #     inc=tcn_settings[modal]['channel'][-1],
-            #     outc=tcn_settings[modal]['channel'][-1],
-            #     dropout=0.3,
-            #     nheads=4,
-            #     nlayer=8,
-            # )
+            self.layer_norm[modal] = nn.LayerNorm(tcn_settings[modal]['channel'][-1] )
+            
 
 
         feas_modalities = [tcn_settings[modal]['channel'][-1] for modal in modalities]
         self.fuse = AttentionFusion(num_feats_modality=feas_modalities, num_out_feats=128)
 
-        self.conv_c = nn.Conv1d(128 * len(modalities), 128, 1)
 
-        self.bn1 = BatchNorm1d(128 * len(modalities))
+        self.layer_norm1 = nn.LayerNorm(128 * len(modalities))
         self.fc1 = Linear(128* len(modalities), 128* len(modalities))
         self.fc2 = Linear(128* len(modalities), 8)
 
-        self.fc_context = Linear(4096, 128)
-        self.bn_context = BatchNorm1d(128)  
     
 
 
@@ -410,16 +399,16 @@ class CAN(nn.Module):
         x = {}
 
         x['clip_feats'] = X['clip_feats'].squeeze(1).transpose(1, 2)
-        x['clip_feats'] = self.temporal['clip_feats'](x['clip_feats'].float())
-        x['clip_feats'] = self.bn['clip_feats'](x['clip_feats'])
+        x['clip_feats'] = self.temporal['clip_feats'](x['clip_feats'].float()).transpose(1, 2)
+        x['clip_feats'] = self.layer_norm['clip_feats'](x['clip_feats']).transpose(1, 2)
 
         x['context'] = X['context'].squeeze(1).transpose(1, 2)
-        x['context'] = self.fc_context(x['context'].transpose(1, 2).float())
-        x['context'] = self.bn_context(x['context'].transpose(1, 2))
+        x['context'] = self.temporal['context'](x['context'].float()).transpose(1, 2)
+        x['context'] = self.layer_norm['context'](x['context']).transpose(1, 2)
         
         c = self.fuse(x)
-        c = self.fc1(c).transpose(1, 2)
-        c = self.bn1(c).transpose(1, 2)
+        c = self.fc1(c)
+        c = self.layer_norm1(c)
         c = F.leaky_relu(c)
         c = self.fc2(c)
         c = torch.tanh(c)
@@ -444,7 +433,6 @@ class Video(nn.Module):
         super().__init__()
         self.device = device
         
-        modalities = ['clip_feats']
         tcn_settings = {
             'clip_feats': {
                 'input_dim': 768,
@@ -452,40 +440,57 @@ class Video(nn.Module):
                 'kernel_size': 5
             }}
 
-
-        self.temporal = nn.ModuleDict()
-        # self.transformer = nn.ModuleDict()
-        self.bn = nn.ModuleDict()
-        self.layer_norm = nn.ModuleDict()
-
-        self.spatial = nn.ModuleDict()
-
-
-        for modal in modalities:
-            self.temporal[modal] = TemporalConvNet(num_inputs=tcn_settings[modal]['input_dim'],
-                                                   num_channels=tcn_settings[modal]['channel'],
-                                                   kernel_size=tcn_settings[modal]['kernel_size'])
-            self.bn[modal] = BatchNorm1d(tcn_settings[modal]['channel'][-1] )
-            self.layer_norm[modal] = nn.LayerNorm(tcn_settings[modal]['channel'][-1])
-    
+        self.temporal = TemporalConvNet(num_inputs=tcn_settings['clip_feats']['input_dim'],
+                                                num_channels=tcn_settings['clip_feats']['channel'],
+                                                kernel_size=tcn_settings['clip_feats']['kernel_size'])
+        self.layer_norm = nn.LayerNorm(tcn_settings['clip_feats']['channel'][-1])
         self.fc = Linear(128, 8)
     
 
 
     def forward(self, modalities, use_extracted_feats):
 
-        X = {}
-        X['clip_feats'] = modalities['clip_feats']
-        x = {}
+        temp_feats = modalities['clip_feats'].squeeze(1).transpose(1, 2)
 
-        x['clip_feats'] = X['clip_feats'].squeeze(1).transpose(1, 2)
-        x['clip_feats'] = self.temporal['clip_feats'](x['clip_feats'].float()).transpose(1, 2)
-        x['clip_feats'] = self.layer_norm['clip_feats'](x['clip_feats'])
-        x['clip_feats'] =  F.leaky_relu(x['clip_feats'])
+        temp_feats = self.temporal(temp_feats.float()).transpose(1, 2)
+        temp_feats = self.layer_norm(temp_feats)
+        temp_feats =  F.leaky_relu(temp_feats)
         
-        c = self.fc(x['clip_feats'])
+        out = self.fc(temp_feats)
         
-        return c , None
+        return out , temp_feats
+    
+class Audio(nn.Module):
+    def __init__(self, device):
+        super().__init__()
+        self.device = device
+        
+        tcn_settings = {
+            'vggish': {
+                'input_dim': 128,
+                'channel': [128, 128, 128],
+                'kernel_size': 5
+                }}
+
+        self.temporal = TemporalConvNet(num_inputs=tcn_settings['vggish']['input_dim'],
+                                                num_channels=tcn_settings['vggish']['channel'],
+                                                kernel_size=tcn_settings['vggish']['kernel_size'])
+        self.layer_norm = nn.LayerNorm(tcn_settings['vggish']['channel'][-1])
+        self.fc = Linear(128, 8)
+    
+
+
+    def forward(self, modalities, use_extracted_feats):
+
+        temp_feats = modalities['vggish'].squeeze(1).transpose(1, 2)
+
+        temp_feats = self.temporal(temp_feats.float()).transpose(1, 2)
+        temp_feats = self.layer_norm(temp_feats)
+        temp_feats =  F.leaky_relu(temp_feats)
+        
+        out = self.fc(temp_feats)
+        
+        return out , temp_feats
     
     
 
@@ -493,22 +498,66 @@ class Context(nn.Module):
     def __init__(self, device):
         super().__init__()
         self.device = device
-        self.fc1 = Linear(4096, 128)
-        self.layer_norm = nn.LayerNorm(128)
-        self.fc2 = Linear(128, 8)    
+        
+        tcn_settings = {
+            'context': {
+                'input_dim': 4096,
+                'channel': [4096, 512, 128],
+                'kernel_size': 5 
+            }}
+
+        self.temporal = TemporalConvNet(num_inputs=tcn_settings['context']['input_dim'],
+                                                num_channels=tcn_settings['context']['channel'],
+                                                kernel_size=tcn_settings['context']['kernel_size'])
+        self.layer_norm = nn.LayerNorm(tcn_settings['context']['channel'][-1])
+        self.fc = Linear(128, 8)  
 
 
     def forward(self, modalities, use_extracted_feats):
 
-        X = {}
-        X['context'] = modalities['context']
-        x = {}
+        temp_feats = modalities['context'].squeeze(1).transpose(1, 2)
 
-        x['context'] = X['context'].squeeze(1)
+        temp_feats = self.temporal(temp_feats.float()).transpose(1, 2)
+        temp_feats = self.layer_norm(temp_feats)
+        temp_feats =  F.leaky_relu(temp_feats)
         
-        c = self.fc1(x['context'])
-        c = self.layer_norm(c)
-        c = F.leaky_relu(c)
-        c = self.fc2(c)
+        out = self.fc(temp_feats)
         
+        return out, temp_feats
+    
+    
+class Fusion(nn.Module):
+    def __init__(self, device):
+        super().__init__()
+        self.device = device
+        
+        self.video_backbone = Video(device=device)
+        self.video_backbone.load_state_dict(torch.load('/home/ens/AS84330/Stimuli/Affwild/Stimuli_official/Affwild_ViT/weights_saved/test_Video__fold0_valence_learning_rate1e-05_batch_size4_seed3/model_state_dict0.4233.pth', map_location='cpu'))
+        self.context_backbone = Context(device=device)
+        self.context_backbone.load_state_dict(torch.load('/home/ens/AS84330/Stimuli/Affwild/Stimuli_official/Affwild_ViT/weights_saved/test_Context__fold0_valence_learning_rate1e-05_batch_size4_seed3/model_state_dict0.2306.pth', map_location='cpu'))
+        
+        self.audio_backbone = Audio(device=device)
+        self.audio_backbone.load_state_dict(torch.load('/home/ens/AS84330/Stimuli/Affwild/Stimuli_official/Affwild_ViT/weights_saved/test_Audio__fold0_valence_learning_rate1e-05_batch_size4_seed3/model_state_dict0.1566.pth', map_location='cpu'))
+        
+        self.fuse = AttentionFusion(num_feats_modality=[128, 128], num_out_feats=128)
+        
+        self.layer_norm = nn.LayerNorm(128 + 128)
+        self.fc = Linear(128 + 128, 8)
+        
+
+
+    def forward(self, modalities, use_extracted_feats):
+        X = {}
+        X['clip_feats'] = modalities['clip_feats']
+        X['context'] = modalities['context']
+        
+        with torch.no_grad():
+            _, video_feats = self.video_backbone(modalities, use_extracted_feats)
+            _, context_feats = self.context_backbone(modalities, use_extracted_feats)
+            # _, audio_feats = self.audio_backbone(modalities, use_extracted_feats)
+            
+        out = self.fuse({'video': video_feats.transpose(1, 2), 'context': context_feats.transpose(1, 2)})
+        out = self.layer_norm(out)
+        out = F.leaky_relu(out)
+        c = self.fc(out)
         return c , None

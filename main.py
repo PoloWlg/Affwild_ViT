@@ -81,7 +81,7 @@ if __name__ == '__main__':
                         help='The size of the 1D kernel for temporal convolutional networks.')
 
     # 2.1. Overall settings
-    parser.add_argument('-model_name', default="Video", help='CAN, Video, Context')
+    parser.add_argument('-model_name', default="CAN", help='CAN, Video, Context, Audio, Fusion')
     parser.add_argument('-fusion_method', default="Video_only", help='concat, attention, proposed1, proposed2_orthogonal')
     parser.add_argument('-frozen_resnet50',type=int, default=1, help='True for frozen False for unfrozen')
     parser.add_argument('-compute_att_maps',type=int, default=0, help='Computing attention maps')
@@ -96,7 +96,7 @@ if __name__ == '__main__':
 
     # 2.2. Epochs and data
     parser.add_argument('-num_epochs', default=20, type=int, help='The total of epochs to run during training.')
-    parser.add_argument('-min_num_epochs', default=5, type=int, help='The minimum epoch to run at least.')
+    parser.add_argument('-min_num_epochs', default=1, type=int, help='The minimum epoch to run at least.')
     parser.add_argument('-early_stopping', default=50, type=int,
                         help='If no improvement, the number of epoch to run before halting the training')
     parser.add_argument('-window_length', default=300, type=int, help='The length in point number to windowing the data.')
@@ -104,7 +104,7 @@ if __name__ == '__main__':
     parser.add_argument('-batch_size', default=4, type=int)
 
     # 2.1. Scheduler and Parameter Control
-    parser.add_argument('-seed', default=8, type=int)
+    parser.add_argument('-seed', default=3, type=int)
     parser.add_argument('-scheduler', default='plateau', type=str, help='plateau, cosine')
     parser.add_argument('-learning_rate', default=1e-5, type=float, help='The initial learning rate.')
     parser.add_argument('-fixed_lr', default=True, type=bool, help='Whether or not to fix the learning rate ')

@@ -55,7 +55,7 @@ class GenericCheckpointer(object):
 
         print("Saving checkpoint.")
         path = os.path.join(path, "checkpoint.pkl")
-        save_to_pickle(path, self.checkpoint, replace=True)
+        # save_to_pickle(path, self.checkpoint, replace=True)
         print("Checkpoint saved.")
 
 

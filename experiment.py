@@ -5,7 +5,7 @@ from trainer import Trainer
 from dataset import DataArranger, Dataset
 from base.checkpointer import Checkpointer
 from models.model import LFAN
-from models.model_proposed import  Video_only, Proposed, CAN, Video, Context
+from models.model_proposed import  Video_only, Proposed, CAN, Video, Context, Fusion, Audio
 
 from base.loss_function import FocalLossWithAlpha
 
@@ -62,8 +62,8 @@ class Experiment(GenericExperiment):
 
     def init_wandb(self):
         wandb.init(
-            project=f"Stimuli4", 
-            group= f"lr_{self.args.learning_rate}-bs_{self.args.batch_size}",
+            project=f"Stimuli_final_experiments", 
+            group= f"lr_{self.args.learning_rate}-bs_{self.args.batch_size}_model_{self.args.model_name}",
             name=f"seed_{self.args.seed}",
             config={
                 "gpu": self.args.gpu,
@@ -173,8 +173,14 @@ class Experiment(GenericExperiment):
         if self.model_name == "Video":
             model = Video(device=self.device)
             
+        if self.model_name == "Audio":
+            model = Audio(device=self.device)
+            
         if self.model_name == "Context":
             model = Context(device=self.device)
+            
+        if self.model_name == "Fusion":
+            model = Fusion(device=self.device)
             
         return model
 
