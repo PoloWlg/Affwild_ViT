@@ -4,10 +4,7 @@ from trainer import Trainer
 
 from dataset import DataArranger, Dataset
 from base.checkpointer import Checkpointer
-from models.model import LFAN
-from models.model_proposed import  Video_only, Proposed, CAN, Video, Context, Fusion, Audio
-
-from base.loss_function import FocalLossWithAlpha
+from models.model_proposed import CAN, Video, Context, Fusion, Audio, Image
 
 from base.parameter_control import ParamControl
 
@@ -181,6 +178,9 @@ class Experiment(GenericExperiment):
             
         if self.model_name == "Fusion":
             model = Fusion(device=self.device)
+            
+        if self.model_name == "Image":
+            model = Image(device=self.device)
             
         return model
 

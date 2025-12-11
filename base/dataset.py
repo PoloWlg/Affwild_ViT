@@ -190,11 +190,11 @@ class GenericDataset(Dataset):
         self.context_path = context_path
         self.context_feature_model = context_feature_model
         
-        self.tokenizer = RobertaTokenizer.from_pretrained('roberta-base', truncation=True, do_lower_case=True, clean_up_tokenization_spaces=True, model_max_length=512)
+        # self.tokenizer = RobertaTokenizer.from_pretrained('roberta-base', truncation=True, do_lower_case=True, clean_up_tokenization_spaces=True, model_max_length=512)
 
         # Load stimuli similarity weights
-        stimuliSimilarity_instance = StimuliSimilarity()
-        self.stimuli_weights = stimuliSimilarity_instance.all_videos_weights
+        # stimuliSimilarity_instance = StimuliSimilarity()
+        # self.stimuli_weights = stimuliSimilarity_instance.all_videos_weights
         
     
     
@@ -335,7 +335,7 @@ class GenericDataset(Dataset):
         examples['vggish'] = self.get_example(path, length, index, 'vggish', indice)
         
         extracted_features['clip_feats'] =  self.get_example(path, length, index, 'clip_feats', indice)
-        extracted_features['stimuli_weights'] =  self.get_stimuli_weight(trial, index, length)
+        # extracted_features['stimuli_weights'] =  self.get_stimuli_weight(trial, index, length)
   
         if len(index) < self.window_length:
             index = np.arange(self.window_length)

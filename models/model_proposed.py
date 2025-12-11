@@ -184,6 +184,18 @@ class AttentionFusion(nn.Module):
 
         return out_feats
 
+class Extract_features(nn.Module):
+    def __init__(self, root_dir, device, backbone_settings, frozen_resnet50, args):
+        super().__init__()
+        self.device = device
+           
+       
+        
+     
+
+    def forward(self, X, use_extracted_feats):
+
+            return
     
 class Proposed(nn.Module):
     def __init__(self, root_dir, device, backbone_settings, frozen_resnet50, args):
@@ -347,7 +359,7 @@ class CAN(nn.Module):
         super().__init__()
         self.device = device
         
-        modalities = ['clip_feats', 'context']
+        modalities = ['clip_feats', 'vggish']
         tcn_settings = {
             'clip_feats': {
                 'input_dim': 768,
@@ -395,32 +407,24 @@ class CAN(nn.Module):
 
         X = {}
         X['clip_feats'] = modalities['clip_feats']
-        X['context'] = modalities['context']
+        X['vggish'] = modalities['vggish']
         x = {}
 
         x['clip_feats'] = X['clip_feats'].squeeze(1).transpose(1, 2)
         x['clip_feats'] = self.temporal['clip_feats'](x['clip_feats'].float()).transpose(1, 2)
-        x['clip_feats'] = self.layer_norm['clip_feats'](x['clip_feats']).transpose(1, 2)
+        x['clip_feats'] = self.layer_norm['clip_feats'](x['clip_feats'])
 
-        x['context'] = X['context'].squeeze(1).transpose(1, 2)
-        x['context'] = self.temporal['context'](x['context'].float()).transpose(1, 2)
-        x['context'] = self.layer_norm['context'](x['context']).transpose(1, 2)
+        x['vggish'] = X['vggish'].squeeze(1).transpose(1, 2)
+        x['vggish'] = self.temporal['vggish'](x['vggish'].float()).transpose(1, 2)
+        x['vggish'] = self.layer_norm['vggish'](x['vggish'])
         
-        c = self.fuse(x)
+        # c = self.fuse(x)
+        c = torch.cat((x['clip_feats'], x['vggish']), dim=2)
         c = self.fc1(c)
         c = self.layer_norm1(c)
         c = F.leaky_relu(c)
         c = self.fc2(c)
         c = torch.tanh(c)
-
-        # visualise = c.detach().cpu().numpy()
-        # for i, batch in enumerate(visualise):
-        #     for k, length in enumerate(batch):
-        #         two = np.where(length > 0.4)[0]
-        #         if len(two) > 1:
-        #             max_indice = np.argmax(modalities['stimuli_weights'][i,k,:][two].detach().cpu().numpy())
-        #             c[i,k,two[max_indice]] = 1
-        
         
         return c , None
     
@@ -561,3 +565,27 @@ class Fusion(nn.Module):
         out = F.leaky_relu(out)
         c = self.fc(out)
         return c , None
+    
+    
+    
+    
+
+class Image(nn.Module):
+    def __init__(self, device):
+        super().__init__()
+        self.device = device
+        
+        self.fc1 = Linear(768, 128)
+        self.bn = nn.BatchNorm1d(128)
+        self.fc2 = Linear(128, 8)
+        
+    def forward(self, modalities, use_extracted_feats):
+
+        temp_feats = modalities['clip_feats'].squeeze(1).squeeze(1)
+
+        temp_feats = self.fc1(temp_feats.float())
+        temp_feats = self.bn(temp_feats)
+        temp_feats =  F.leaky_relu(temp_feats)
+        out = self.fc2(temp_feats)
+        
+        return out , temp_feats

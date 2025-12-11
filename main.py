@@ -16,7 +16,7 @@ if __name__ == '__main__':
 
     # 1. Experiment Setting
     # 1.1. Server
-    parser.add_argument('-gpu', default=0, type=int, help='Which gpu to use?')
+    parser.add_argument('-gpu', default=3, type=int, help='Which gpu to use?')
     parser.add_argument('-cpu', default=5, type=int, help='How many threads are allowed?')
     parser.add_argument('-high_performance_cluster', default=1, type=int, help='On high-performance server or not?'
                                                                                'If set to 1, then the gpu and cpu settings will be ignored.'
@@ -38,7 +38,7 @@ if __name__ == '__main__':
                         help='The path to the entire repository.')
     parser.add_argument('-context_path', default='/projets2/AS84330/Datasets/Abaw6_EXPR/context', type=str,
                         help='The root directory of the preprocessed context dataset.')
-    parser.add_argument('-semantic_context_path', default=paths['semantic_context_path'], type=str,
+    parser.add_argument('-semantic_context_path', default='', type=str,
                         help='Path of the semantic context')
 
     # 1.3. Experiment name, and stamp, will be used to name the output files.
@@ -81,7 +81,7 @@ if __name__ == '__main__':
                         help='The size of the 1D kernel for temporal convolutional networks.')
 
     # 2.1. Overall settings
-    parser.add_argument('-model_name', default="CAN", help='CAN, Video, Context, Audio, Fusion')
+    parser.add_argument('-model_name', default="Image", help='CAN, Video, Context, Audio, Image, Fusion')
     parser.add_argument('-fusion_method', default="Video_only", help='concat, attention, proposed1, proposed2_orthogonal')
     parser.add_argument('-frozen_resnet50',type=int, default=1, help='True for frozen False for unfrozen')
     parser.add_argument('-compute_att_maps',type=int, default=0, help='Computing attention maps')
@@ -99,14 +99,14 @@ if __name__ == '__main__':
     parser.add_argument('-min_num_epochs', default=1, type=int, help='The minimum epoch to run at least.')
     parser.add_argument('-early_stopping', default=50, type=int,
                         help='If no improvement, the number of epoch to run before halting the training')
-    parser.add_argument('-window_length', default=300, type=int, help='The length in point number to windowing the data.')
-    parser.add_argument('-hop_length', default=200, type=int, help='The step size or stride to move the window.')
-    parser.add_argument('-batch_size', default=4, type=int)
+    parser.add_argument('-window_length', default=1, type=int, help='The length in point number to windowing the data.')
+    parser.add_argument('-hop_length', default=1, type=int, help='The step size or stride to move the window.')
+    parser.add_argument('-batch_size', default=256, type=int)
 
     # 2.1. Scheduler and Parameter Control
-    parser.add_argument('-seed', default=3, type=int)
+    parser.add_argument('-seed', default=1, type=int)
     parser.add_argument('-scheduler', default='plateau', type=str, help='plateau, cosine')
-    parser.add_argument('-learning_rate', default=1e-5, type=float, help='The initial learning rate.')
+    parser.add_argument('-learning_rate', default=1e-3, type=float, help='The initial learning rate.')
     parser.add_argument('-fixed_lr', default=True, type=bool, help='Whether or not to fix the learning rate ')
     parser.add_argument('-min_learning_rate', default=1.e-8, type=float, help='The minimum learning rate.')
     parser.add_argument('-patience', default=2, type=int, help='Patience for learning rate changes.')
@@ -116,7 +116,7 @@ if __name__ == '__main__':
     parser.add_argument('-milestone', default=[0], nargs="+", type=int, help='The specific epochs to do something.')
     parser.add_argument('-load_best_at_each_epoch', default=0, type=int,
                         help='Whether to load the best models state at the end of each epoch?')
-    parser.add_argument('-weight_decay', default=0.1, type=float)
+    parser.add_argument('-weight_decay', default=0, type=float)
 
 
     # 2.2. Groundtruth settings
